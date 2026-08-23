@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useLTrack } from '../context/LTrackContext';
+import { useRealtime } from '../context/RealtimeContext';
 import { useDebounce } from '../hooks/useDebounce';
 import {
   HeartHandshake,
@@ -11,6 +12,7 @@ import {
 
 export const PeerHelpCommunityView: React.FC = () => {
   const { peerHelpRequests, offerPeerHelp, requestPeerHelp, topics, currentUser } = useLTrack();
+  const { broadcastPeerHelpCreated, broadcastPeerHelpOffered } = useRealtime();
 
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [topicName, setTopicName] = useState(topics[0]?.name || 'FastAPI Dependency Injection');
@@ -39,9 +41,34 @@ export const PeerHelpCommunityView: React.FC = () => {
   const handleRequestHelp = (e: React.FormEvent) => {
     e.preventDefault();
     if (!strugglingWith.trim()) return;
+    
+    const newHelp = {
+      id: `help_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      userAvatar: currentUser.avatar,
+      topicName,
+      category,
+      strugglingWith,
+      confidenceScore: Number(confidenceScore),
+      status: 'needs_help',
+      createdAt: 'Just now'
+    };
+
     requestPeerHelp(topicName, category, strugglingWith, Number(confidenceScore));
+    broadcastPeerHelpCreated(newHelp);
+
     setStrugglingWith('');
     setShowRequestModal(false);
+  };
+
+  const handleOfferHelp = (reqId: string) => {
+    offerPeerHelp(reqId);
+    broadcastPeerHelpOffered({
+      requestId: reqId,
+      helperId: currentUser.id,
+      helperName: currentUser.name
+    });
   };
 
   return (
@@ -196,7 +223,7 @@ export const PeerHelpCommunityView: React.FC = () => {
                 <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px' }}>
                   {!isResolved && !isPairing && !isMyRequest && (
                     <button
-                      onClick={() => offerPeerHelp(req.id)}
+                      onClick={() => handleOfferHelp(req.id)}
                       className="btn btn-primary"
                       style={{ width: '100%', padding: '8px', fontSize: '0.82rem', justifyContent: 'center' }}
                     >

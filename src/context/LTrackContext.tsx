@@ -167,6 +167,44 @@ export const LTrackProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return currentUser.role === 'admin' ? 'admin_dashboard' : 'member_dashboard';
   });
 
+  // Listen for real-time peer help sync events
+  useEffect(() => {
+    const handleCreated = (e: any) => {
+      const newHelp: PeerHelpRequest = e.detail;
+      if (newHelp) {
+        setPeerHelpRequests((prev) => {
+          if (prev.some((p) => p.id === newHelp.id)) return prev;
+          const updated = [newHelp, ...prev];
+          localStorage.setItem(STORAGE_KEY + '_peer_help', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    };
+
+    const handleOffered = (e: any) => {
+      const { requestId, helperId, helperName } = e.detail || {};
+      if (requestId) {
+        setPeerHelpRequests((prev) => {
+          const updated = prev.map((r) =>
+            r.id === requestId
+              ? { ...r, helperId, helperName, status: 'pairing_scheduled' as const }
+              : r
+          );
+          localStorage.setItem(STORAGE_KEY + '_peer_help', JSON.stringify(updated));
+          return updated;
+        });
+      }
+    };
+
+    window.addEventListener('ltrack_peer_help_created', handleCreated);
+    window.addEventListener('ltrack_peer_help_offered', handleOffered);
+
+    return () => {
+      window.removeEventListener('ltrack_peer_help_created', handleCreated);
+      window.removeEventListener('ltrack_peer_help_offered', handleOffered);
+    };
+  }, []);
+
   // Sync to local storage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY + '_auth', JSON.stringify(isAuthenticated));

@@ -50,6 +50,8 @@ interface RealtimeContextType {
   toggleCall: () => void;
   startPairingSession: (partnerUserId: string, topicName: string) => void;
   resolvePairingSession: () => void;
+  broadcastPeerHelpCreated: (data: any) => void;
+  broadcastPeerHelpOffered: (data: any) => void;
 }
 
 const initialMockNotifications: RealtimeNotification[] = [
@@ -297,19 +299,38 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     } else if (payload.type === 'call_toggle') {
       setActivePairingRoom((prev) => (prev ? { ...prev, callActive: !prev.callActive } : null));
     } else if (payload.type === 'session_resolve') {
-      setActivePairingRoom((prev) => (prev ? { ...prev, status: 'resolved' } : null));
-      setNotifications((prev) => [
-        {
-          id: `res_${Date.now()}`,
-          type: 'pr_graded',
-          title: `🏆 Pairing Session Resolved!`,
-          message: `Live pairing session for ${activePairingRoom?.topicName || 'FastAPI'} was marked resolved (+50 Pts)`,
-          linkTab: 'live_pairing',
-          read: false,
-          timestamp: 'Just now'
-        },
-        ...prev
-      ]);
+    } else if (payload.type === 'peer_help_created' && payload.data) {
+      window.dispatchEvent(new CustomEvent('ltrack_peer_help_created', { detail: payload.data }));
+      if (payload.data.userId !== currentUser.id) {
+        setNotifications((prev) => [
+          {
+            id: `help_${Date.now()}`,
+            type: 'help_requested',
+            title: `Peer Help: ${payload.data.userName.split(' ')[0]} requested pairing`,
+            message: `${payload.data.userName} needs help with ${payload.data.topicName}: "${payload.data.strugglingWith}"`,
+            linkTab: 'peer_help',
+            read: false,
+            timestamp: 'Just now'
+          },
+          ...prev
+        ]);
+      }
+    } else if (payload.type === 'peer_help_offered' && payload.data) {
+      window.dispatchEvent(new CustomEvent('ltrack_peer_help_offered', { detail: payload.data }));
+      if (payload.data.helperId !== currentUser.id) {
+        setNotifications((prev) => [
+          {
+            id: `offered_${Date.now()}`,
+            type: 'help_offered',
+            title: `Peer Pairing Offer!`,
+            message: `${payload.data.helperName} offered to pair with you!`,
+            linkTab: 'live_pairing',
+            read: false,
+            timestamp: 'Just now'
+          },
+          ...prev
+        ]);
+      }
     }
   };
 
@@ -662,7 +683,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         endCall,
         toggleCall,
         startPairingSession,
-        resolvePairingSession
+        resolvePairingSession,
+        broadcastPeerHelpCreated: (data: any) => broadcastPayload({ type: 'peer_help_created', data }),
+        broadcastPeerHelpOffered: (data: any) => broadcastPayload({ type: 'peer_help_offered', data })
       } as any}
     >
       {children}

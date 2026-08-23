@@ -96,7 +96,7 @@ async def websocket_user_endpoint(websocket: WebSocket, user_id: str):
                 payload = json.loads(data)
                 # Broadcast chat messages, code sync, deletions, and voice notes to all peers
                 msg_type = payload.get("type")
-                if msg_type in ["pairing_chat", "pairing_chat_delete", "code_change", "notes_change", "cursor_update", "call_toggle", "session_resolve", "user_typing", "chat_typing", "incoming_call_request", "call_accepted", "call_rejected", "call_cancelled", "call_ended"]:
+                if msg_type in ["pairing_chat", "pairing_chat_delete", "code_change", "notes_change", "cursor_update", "call_toggle", "session_resolve", "user_typing", "chat_typing", "incoming_call_request", "call_accepted", "call_rejected", "call_cancelled", "call_ended", "peer_help_created", "peer_help_offered"]:
                     await manager.broadcast_to_all(payload, exclude_socket=websocket)
                 elif msg_type == "status_update":
                     await manager.broadcast_presence()
