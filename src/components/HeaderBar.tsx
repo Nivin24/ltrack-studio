@@ -1,0 +1,454 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useLTrack } from '../context/LTrackContext';
+import { useRealtime } from '../context/RealtimeContext';
+import { useDebounce } from '../hooks/useDebounce';
+import { NotificationDrawer } from './NotificationDrawer';
+import {
+  Search,
+  FileCode,
+  Bell,
+  ArrowRight,
+  BookOpen,
+  Menu
+} from 'lucide-react';
+
+interface HeaderBarProps {
+  onToggleMobileSidebar?: () => void;
+}
+
+export const HeaderBar: React.FC<HeaderBarProps> = ({ onToggleMobileSidebar }) => {
+  const { currentUser, activeTab, setActiveTab, topics, assignments, members } = useLTrack();
+  const { unreadCount } = useRealtime();
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showNotifDrawer, setShowNotifDrawer] = useState(false);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const debouncedQuery = useDebounce(searchQuery, 200);
+
+  // Global Keyboard Shortcut: Cmd+K (macOS) or Ctrl+K (Windows/Linux) to open Spotlight
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowSearchModal((prev) => !prev);
+      } else if (e.key === 'Escape') {
+        setShowSearchModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Focus input automatically when search modal opens
+  useEffect(() => {
+    if (showSearchModal) {
+      setTimeout(() => searchInputRef.current?.focus(), 60);
+    } else {
+      setSearchQuery('');
+    }
+  }, [showSearchModal]);
+
+  // Filtered search results
+  const matchedTopics = debouncedQuery.trim()
+    ? topics.filter((t) =>
+        t.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        t.category.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        t.subtopics.some((s) => s.name.toLowerCase().includes(debouncedQuery.toLowerCase()))
+      ).slice(0, 4)
+    : [];
+
+  const matchedAssignments = debouncedQuery.trim()
+    ? assignments.filter((a) =>
+        a.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        a.description.toLowerCase().includes(debouncedQuery.toLowerCase())
+      ).slice(0, 3)
+    : [];
+
+  const matchedMembers = debouncedQuery.trim()
+    ? members.filter((m) =>
+        m.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        m.github.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
+        m.email.toLowerCase().includes(debouncedQuery.toLowerCase())
+      ).slice(0, 3)
+    : [];
+
+  const totalMatches = [...matchedTopics, ...matchedAssignments, ...matchedMembers];
+
+  // Primary Top Navigation Tabs
+  const memberNavTabs = [
+    { id: 'member_dashboard', label: 'Dashboard' },
+    { id: 'roadmap', label: 'Roadmap' },
+    { id: 'code_sandbox', label: 'Code Sandbox' },
+    { id: 'assignments', label: 'Assignments' },
+    { id: 'peer_help', label: 'Peer Hub' }
+  ];
+
+  const adminNavTabs = [
+    { id: 'admin_dashboard', label: 'Overview' },
+    { id: 'assignments', label: 'Assignments Hub' },
+    { id: 'evidence_engine', label: 'Evidence Engine' },
+    { id: 'skill_matrix', label: 'Skill Matrix' }
+  ];
+
+  const navTabs = currentUser.role === 'admin' ? adminNavTabs : memberNavTabs;
+
+  return (
+    <div style={{ padding: '16px 20px 0 20px', width: '100%' }}>
+      {/* Floating Header Capsule */}
+      <header style={{
+        height: '68px',
+        background: 'rgba(20, 20, 26, 0.85)',
+        backdropFilter: 'blur(32px) saturate(200%)',
+        WebkitBackdropFilter: 'blur(32px) saturate(200%)',
+        border: '1px solid rgba(212, 163, 115, 0.16)',
+        borderRadius: '24px',
+        boxShadow: '0 10px 30px -5px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        gap: '12px'
+      }}>
+        {/* 1. Left: Mobile Hamburger (Only on Tab/Mobile) & Brand Mark */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          {onToggleMobileSidebar && (
+            <button
+              onClick={onToggleMobileSidebar}
+              className="show-on-mobile"
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '10px',
+                padding: '7px',
+                color: '#eae6e1',
+                cursor: 'pointer',
+                display: 'none',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="Toggle Tool Drawer"
+            >
+              <Menu size={18} />
+            </button>
+          )}
+
+          <img
+            src="/logo.png"
+            alt="LTrack Logo"
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '11px',
+              objectFit: 'cover',
+              boxShadow: '0 4px 14px rgba(212, 163, 115, 0.35)',
+              border: '1px solid rgba(255, 255, 255, 0.12)'
+            }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.03em' }}>
+              LTrack
+            </span>
+            <span style={{
+              fontSize: '0.58rem',
+              padding: '2px 6px',
+              borderRadius: '6px',
+              background: currentUser.role === 'admin' ? 'rgba(212, 163, 115, 0.16)' : 'rgba(52, 211, 153, 0.16)',
+              color: currentUser.role === 'admin' ? '#d4a373' : '#34d399',
+              border: '1px solid',
+              borderColor: currentUser.role === 'admin' ? 'rgba(212, 163, 115, 0.3)' : 'rgba(52, 211, 153, 0.3)',
+              fontWeight: 700
+            }}>
+              {currentUser.role === 'admin' ? 'ADMIN' : 'LEARNER'}
+            </span>
+          </div>
+        </div>
+
+        {/* 2. Center: Segmented Navigation Capsule with Horizontal Touch Scroll */}
+        <nav
+          className="header-tabs-scroll"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            padding: '3px 4px',
+            borderRadius: '24px',
+            gap: '3px',
+            maxWidth: '60vw',
+            overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          {navTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '18px',
+                  border: 'none',
+                  background: isActive ? '#f5f5f7' : 'transparent',
+                  color: isActive ? '#0e0e12' : 'var(--text-muted)',
+                  fontWeight: isActive ? 800 : 500,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.18s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: isActive ? '0 4px 12px rgba(0, 0, 0, 0.35)' : 'none',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* 3. Right: Spotlight Capsule, Bell & Profile Avatar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* Spotlight Search Capsule */}
+          <button
+            onClick={() => setShowSearchModal(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '18px',
+              padding: '6px 10px',
+              color: 'var(--text-muted)',
+              fontSize: '0.78rem',
+              fontWeight: 500,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            title="Search curriculum, assignments, peers (Cmd+K)"
+          >
+            <Search size={14} color="#d4a373" />
+            <span className="hide-on-mobile">Spotlight</span>
+            <span className="hide-on-mobile" style={{
+              fontSize: '0.64rem',
+              fontWeight: 700,
+              padding: '1px 5px',
+              borderRadius: '4px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              color: 'var(--text-main)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}>
+              ⌘K
+            </span>
+          </button>
+
+          {/* Notification Bell Pill */}
+          <button
+            onClick={() => setShowNotifDrawer(true)}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-muted)',
+              cursor: 'pointer',
+              position: 'relative',
+              transition: 'all 0.15s ease'
+            }}
+            title="Notifications"
+          >
+            <Bell size={16} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: '5px',
+                right: '5px',
+                width: '7px',
+                height: '7px',
+                borderRadius: '50%',
+                background: '#ef4444',
+                boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)'
+              }} />
+            )}
+          </button>
+
+          {/* Profile Avatar Pill */}
+          <div
+            onClick={() => setActiveTab('profile')}
+            style={{
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '2px',
+              borderRadius: '50%',
+              border: activeTab === 'profile' ? '2px solid #d4a373' : '2px solid transparent'
+            }}
+            title={`View Profile (${currentUser.name})`}
+          >
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                objectFit: 'cover'
+              }}
+            />
+          </div>
+        </div>
+      </header>
+
+      {/* Global Spotlight Search Modal Dialog */}
+      {showSearchModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowSearchModal(false)}
+          style={{ zIndex: 2000 }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '580px', padding: 0, overflow: 'hidden' }}
+          >
+            {/* Input Row */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '16px 20px',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'rgba(255, 255, 255, 0.03)'
+            }}>
+              <Search size={18} color="#d4a373" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search topics, assignments, peer mentors, or code..."
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  outline: 'none',
+                  color: '#f5f5f7',
+                  fontSize: '0.95rem',
+                  fontFamily: 'inherit'
+                }}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)' }}>
+                ESC to close
+              </span>
+            </div>
+
+            {/* Results Feed */}
+            <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '12px 16px' }}>
+              {debouncedQuery.trim() === '' ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dim)' }}>
+                  <p style={{ fontSize: '0.85rem' }}>Type to search anything in LTrack</p>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                    {['FastAPI', 'Docker', 'Async Python', 'Binary Search', 'Rahul'].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setSearchQuery(s)}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.05)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '12px',
+                          padding: '4px 10px',
+                          color: '#d4a373',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : totalMatches.length === 0 ? (
+                <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-dim)' }}>
+                  <p style={{ fontSize: '0.88rem' }}>No results found for "{debouncedQuery}"</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {matchedTopics.map((topic) => (
+                    <div
+                      key={topic.id}
+                      onClick={() => {
+                        setActiveTab('roadmap');
+                        setShowSearchModal(false);
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <BookOpen size={16} color="#d4a373" />
+                        <div>
+                          <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#eae6e1' }}>{topic.name}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginLeft: '8px' }}>{topic.category}</span>
+                        </div>
+                      </div>
+                      <ArrowRight size={14} color="var(--text-dim)" />
+                    </div>
+                  ))}
+
+                  {matchedAssignments.map((a) => (
+                    <div
+                      key={a.id}
+                      onClick={() => {
+                        setActiveTab('assignments');
+                        setShowSearchModal(false);
+                      }}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <FileCode size={16} color="#34d399" />
+                        <div>
+                          <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#eae6e1' }}>{a.title}</span>
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginLeft: '8px' }}>{a.difficulty} • Deadline {a.deadline}</span>
+                        </div>
+                      </div>
+                      <ArrowRight size={14} color="var(--text-dim)" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Drawer */}
+      <NotificationDrawer
+        isOpen={showNotifDrawer}
+        onClose={() => setShowNotifDrawer(false)}
+      />
+    </div>
+  );
+};
