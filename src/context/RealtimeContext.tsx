@@ -238,6 +238,21 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         localStorage.setItem('ltrack_pairing_messages', JSON.stringify(updated));
         return updated;
       });
+
+      if (incomingMsg.senderId !== currentUser.id) {
+        setNotifications((prev) => [
+          {
+            id: `notif_${Date.now()}`,
+            type: 'help_offered',
+            title: `New message from ${incomingMsg.senderName.split(' ')[0]}`,
+            message: incomingMsg.text || (incomingMsg.isVoiceNote ? '🎙️ Sent a voice note' : '💻 Shared a code snippet'),
+            linkTab: 'live_pairing',
+            read: false,
+            timestamp: 'Just now'
+          },
+          ...prev
+        ]);
+      }
     } else if (payload.type === 'pairing_chat_delete' && payload.data?.id) {
       const targetId = payload.data.id;
       setPairingMessages((prev) => {
@@ -252,6 +267,18 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     } else if (payload.type === 'incoming_call_request' && payload.data) {
       if (payload.data.callerId !== currentUser.id) {
         setIncomingCall(payload.data);
+        setNotifications((prev) => [
+          {
+            id: `call_${Date.now()}`,
+            type: 'help_requested',
+            title: `📞 Incoming Voice Call`,
+            message: `${payload.data.callerName} is requesting a live peer voice pairing call`,
+            linkTab: 'live_pairing',
+            read: false,
+            timestamp: 'Just now'
+          },
+          ...prev
+        ]);
       }
     } else if (payload.type === 'call_accepted') {
       setIsOutgoingCall(false);
@@ -271,6 +298,18 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       setActivePairingRoom((prev) => (prev ? { ...prev, callActive: !prev.callActive } : null));
     } else if (payload.type === 'session_resolve') {
       setActivePairingRoom((prev) => (prev ? { ...prev, status: 'resolved' } : null));
+      setNotifications((prev) => [
+        {
+          id: `res_${Date.now()}`,
+          type: 'pr_graded',
+          title: `🏆 Pairing Session Resolved!`,
+          message: `Live pairing session for ${activePairingRoom?.topicName || 'FastAPI'} was marked resolved (+50 Pts)`,
+          linkTab: 'live_pairing',
+          read: false,
+          timestamp: 'Just now'
+        },
+        ...prev
+      ]);
     }
   };
 
