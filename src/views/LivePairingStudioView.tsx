@@ -32,6 +32,10 @@ export const LivePairingStudioView: React.FC = () => {
     deletePairingMessage,
     updateScratchpadCode,
     updateSharedNotes,
+    incomingCall,
+    isOutgoingCall,
+    acceptIncomingCall,
+    rejectIncomingCall,
     toggleCall,
     resolvePairingSession,
     isConnected
@@ -77,6 +81,10 @@ export const LivePairingStudioView: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const recordIntervalRef = useRef<number | null>(null);
 
+  // Determine local user vs remote peer
+  const isHost = activePairingRoom ? currentUser.id === activePairingRoom.hostUser.id : true;
+  const peerUser = activePairingRoom ? (isHost ? activePairingRoom.partnerUser : activePairingRoom.hostUser) : { id: 'peer', name: 'Peer', avatar: '' };
+
   // Discord-Grade WebRTC Live Voice Call Hook
   const {
     isMicMuted,
@@ -88,6 +96,7 @@ export const LivePairingStudioView: React.FC = () => {
   } = useDiscordVoiceCall({
     roomId: activePairingRoom?.roomId || 'default_room',
     userId: currentUser.id,
+    peerUserId: peerUser.id,
     userName: currentUser.name,
     callActive: !!activePairingRoom?.callActive,
     onCallToggle: toggleCall
@@ -119,9 +128,7 @@ export const LivePairingStudioView: React.FC = () => {
       return () => {
         channel.close();
       };
-    } catch {
-      // BroadcastChannel fallback
-    }
+    } catch {}
   }, [currentUser.id]);
 
   // Auto-scroll to unread messages or bottom when messages change
@@ -157,10 +164,6 @@ export const LivePairingStudioView: React.FC = () => {
       </div>
     );
   }
-
-  // Determine local user vs remote peer for distinct color themes
-  const isHost = currentUser.id === activePairingRoom.hostUser.id;
-  const peerUser = isHost ? activePairingRoom.partnerUser : activePairingRoom.hostUser;
 
   const isLocalUserEditing = typingUserId === currentUser.id;
   const isPeerEditing = typingUserId === peerUser.id;
@@ -386,7 +389,88 @@ export const LivePairingStudioView: React.FC = () => {
   const unreadStartIndex = lastReadMessageCount;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', height: '100%', minHeight: 0, flex: 1, width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', height: '100%', minHeight: 0, flex: 1, width: '100%', position: 'relative' }}>
+      {/* Incoming Call Request Floating Notification Dialog */}
+      {incomingCall && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '86px',
+            right: '24px',
+            zIndex: 3000,
+            background: 'rgba(20, 20, 28, 0.96)',
+            backdropFilter: 'blur(32px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+            border: '1px solid rgba(212, 163, 115, 0.35)',
+            borderRadius: '16px',
+            padding: '16px 18px',
+            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 163, 115, 0.15)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            maxWidth: '340px',
+            animation: 'appleScaleUp 0.22s ease'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <img
+              src={incomingCall.callerAvatar}
+              alt={incomingCall.callerName}
+              style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #d4a373', objectFit: 'cover' }}
+            />
+            <div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#eae6e1' }}>
+                Incoming Voice Call
+              </div>
+              <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                {incomingCall.callerName} is calling you for live pairing
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '2px' }}>
+            <button
+              onClick={rejectIncomingCall}
+              style={{
+                background: 'rgba(196, 118, 98, 0.2)',
+                border: '1px solid rgba(196, 118, 98, 0.4)',
+                borderRadius: '8px',
+                padding: '6px 14px',
+                color: '#c47662',
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}
+            >
+              <PhoneOff size={12} /> Reject
+            </button>
+
+            <button
+              onClick={acceptIncomingCall}
+              style={{
+                background: 'linear-gradient(135deg, #34d399 0%, #059669 100%)',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '6px 16px',
+                color: '#0e0e12',
+                fontSize: '0.76rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                boxShadow: '0 2px 10px rgba(52, 211, 153, 0.35)'
+              }}
+            >
+              <Video size={12} fill="#0e0e12" /> Take Call
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. Top Pairing Control Bar */}
       <div className="glass-panel" style={{ padding: '12px 18px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', flexShrink: 0 }}>
         <div>
@@ -396,7 +480,7 @@ export const LivePairingStudioView: React.FC = () => {
             </span>
             <span style={{ fontSize: '0.72rem', color: '#849c86', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isConnected ? '#849c86' : '#d4a373', display: 'inline-block' }} />
-              {isConnected ? 'WebSockets Live Sync (Connected)' : 'Broadcast Channel Local Sync'}
+              {isConnected ? 'WebSockets & Cloud WebRTC (Connected)' : 'Local Broadcast Sync'}
             </span>
           </div>
           <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#eae6e1' }}>
@@ -404,7 +488,7 @@ export const LivePairingStudioView: React.FC = () => {
           </h2>
         </div>
 
-        {/* Participants & Discord Voice Call Button */}
+        {/* Participants & Call Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           {/* Participant Badges */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255, 255, 255, 0.04)', padding: '4px 10px', borderRadius: '24px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
@@ -449,7 +533,7 @@ export const LivePairingStudioView: React.FC = () => {
             </div>
           </div>
 
-          {/* Clean Previous Audio Call Toggle Button */}
+          {/* Clean Call Toggle Button with Outgoing Calling State */}
           <button
             onClick={toggleCall}
             style={{
@@ -459,8 +543,16 @@ export const LivePairingStudioView: React.FC = () => {
               padding: '7px 12px',
               borderRadius: '8px',
               border: 'none',
-              background: activePairingRoom.callActive ? 'rgba(196, 118, 98, 0.2)' : 'rgba(132, 156, 134, 0.2)',
-              color: activePairingRoom.callActive ? '#c47662' : '#849c86',
+              background: activePairingRoom.callActive
+                ? 'rgba(196, 118, 98, 0.2)'
+                : isOutgoingCall
+                ? 'rgba(212, 163, 115, 0.2)'
+                : 'rgba(132, 156, 134, 0.2)',
+              color: activePairingRoom.callActive
+                ? '#c47662'
+                : isOutgoingCall
+                ? '#d4a373'
+                : '#849c86',
               fontSize: '0.78rem',
               fontWeight: 700,
               cursor: 'pointer'
@@ -469,6 +561,10 @@ export const LivePairingStudioView: React.FC = () => {
             {activePairingRoom.callActive ? (
               <>
                 <PhoneOff size={14} /> End Call
+              </>
+            ) : isOutgoingCall ? (
+              <>
+                <PhoneOff size={14} /> Calling... (Cancel)
               </>
             ) : (
               <>
@@ -508,7 +604,7 @@ export const LivePairingStudioView: React.FC = () => {
           gap: '10px',
           flexShrink: 0
         }}>
-          {/* Left: Audio Call Status & Gentle Decibel Indicator */}
+          {/* Left: Audio Call Status & Speaking Indicator */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#849c86' }} />
             <span style={{ fontSize: '0.8rem', color: '#a4bfa6', fontWeight: 600 }}>
@@ -566,7 +662,7 @@ export const LivePairingStudioView: React.FC = () => {
         </div>
       )}
 
-      {/* 3. Main Two-Column Studio Layout */}
+      {/* 2. Main Two-Column Studio Layout */}
       <div className="responsive-split-grid" style={{ alignItems: 'stretch' }}>
         {/* Left Column: Shared Python Code Scratchpad + Live Co-op Terminal Output */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', minHeight: 0 }}>

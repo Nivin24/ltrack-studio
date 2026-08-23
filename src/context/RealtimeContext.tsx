@@ -1,21 +1,31 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import Peer, { type DataConnection } from 'peerjs';
 import { useLTrack } from './LTrackContext';
-import type {
-  OnlineMemberPresence,
-  RealtimeNotification,
-  PairingChatMessage,
-  PairingRoomState,
-  PresenceStatus
+import {
+  type PresenceStatus,
+  type OnlineMemberPresence,
+  type RealtimeNotification,
+  type PairingRoomState,
+  type PairingChatMessage
 } from '../types/realtime';
+
+export interface IncomingCallInfo {
+  callerId: string;
+  callerName: string;
+  callerAvatar: string;
+  topicName?: string;
+}
 
 interface RealtimeContextType {
   isConnected: boolean;
   onlinePresence: OnlineMemberPresence[];
   notifications: RealtimeNotification[];
   unreadCount: number;
+  myPresenceStatus: PresenceStatus;
   activePairingRoom: PairingRoomState | null;
   pairingMessages: PairingChatMessage[];
-  myPresenceStatus: PresenceStatus;
+  incomingCall: IncomingCallInfo | null;
+  isOutgoingCall: boolean;
   setMyPresenceStatus: (status: PresenceStatus) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
@@ -31,49 +41,38 @@ interface RealtimeContextType {
   deletePairingMessage: (id: string) => void;
   updateScratchpadCode: (code: string) => void;
   updateSharedNotes: (notes: string) => void;
+  initiateCall: () => void;
+  acceptIncomingCall: () => void;
+  rejectIncomingCall: () => void;
+  cancelOutgoingCall: () => void;
+  endCall: () => void;
   toggleCall: () => void;
   startPairingSession: (partnerUserId: string, topicName: string) => void;
   resolvePairingSession: () => void;
-  closePairingSession: () => void;
 }
 
 const initialMockNotifications: RealtimeNotification[] = [
   {
     id: 'notif_1',
     type: 'pr_graded',
-    title: 'PR Solution Evaluated! 🎉',
-    message: 'Nivin (Admin) graded your PR #14 on OAuth2 JWT Authentication with 9.8/10.',
-    linkTab: 'assignments',
-    senderName: 'Nivin (Admin)',
-    senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    title: 'Assignment Evaluated: FastAPI Auth',
+    message: 'Your Pull Request for Phase 3 was evaluated by Nivin. Score: 9.4/10 (+80 Points)',
+    timestamp: '10m ago',
     read: false,
-    timestamp: '5m ago'
+    linkTab: 'assignments'
   },
   {
     id: 'notif_2',
     type: 'help_requested',
-    title: 'New Peer Help Request 🆘',
-    message: 'Alex Rivera is seeking help on FastAPI pytest fixtures in Phase 4.',
-    linkTab: 'peer_help',
-    senderName: 'Alex Rivera',
-    senderAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+    title: 'Peer Help: Alex requested pairing',
+    message: 'Alex is struggling with pytest AsyncSession dependency overrides and requested your help.',
+    timestamp: '25m ago',
     read: false,
-    timestamp: '25m ago'
-  },
-  {
-    id: 'notif_3',
-    type: 'guidance_received',
-    title: 'Personalized Guidance Dispatched 🎯',
-    message: 'Coordinator posted a 1-on-1 action plan for Async ORM concurrency.',
-    linkTab: 'profile',
-    senderName: 'Nivin (Admin)',
-    senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    read: true,
-    timestamp: '2h ago'
+    linkTab: 'live_pairing'
   }
 ];
 
-const initialPairingSampleMessages: PairingChatMessage[] = [
+const initialMockMessages: PairingChatMessage[] = [
   {
     id: 'msg_1',
     roomId: 'room_fastapi_di',
@@ -120,6 +119,10 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isConnected, setIsConnected] = useState(false);
   const [myPresenceStatus, setMyPresenceStatus] = useState<PresenceStatus>('coding');
 
+  // Incoming / Outgoing Call Confirmation State
+  const [incomingCall, setIncomingCall] = useState<IncomingCallInfo | null>(null);
+  const [isOutgoingCall, setIsOutgoingCall] = useState(false);
+
   const [notifications, setNotifications] = useState<RealtimeNotification[]>(() => {
     const saved = localStorage.getItem('ltrack_notifications');
     return saved ? JSON.parse(saved) : initialMockNotifications;
@@ -160,12 +163,16 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     };
   });
 
-  const [pairingMessages, setPairingMessages] = useState<PairingChatMessage[]>(initialPairingSampleMessages);
+  const [pairingMessages, setPairingMessages] = useState<PairingChatMessage[]>(() => {
+    const saved = localStorage.getItem('ltrack_pairing_messages');
+    return saved ? JSON.parse(saved) : initialMockMessages;
+  });
 
   const wsRef = useRef<WebSocket | null>(null);
   const broadcastRef = useRef<BroadcastChannel | null>(null);
+  const peerInstanceRef = useRef<Peer | null>(null);
+  const dataConnRef = useRef<DataConnection | null>(null);
 
-  // Online presence list derived from members
   const [onlinePresence, setOnlinePresence] = useState<OnlineMemberPresence[]>([
     {
       userId: 'usr_1',
@@ -209,7 +216,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     }
   ]);
 
-  // Handle incoming real-time payload from WebSocket or BroadcastChannel
+  // Handle incoming real-time payload from Cloud WebRTC, WebSocket, or BroadcastChannel
   const handleRealtimePayload = (payload: any) => {
     if (!payload || !payload.type) return;
 
@@ -226,19 +233,67 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       const incomingMsg: PairingChatMessage = payload.data;
       setPairingMessages((prev) => {
         if (prev.some((m) => m.id === incomingMsg.id)) return prev;
-        return [...prev, incomingMsg];
+        const updated = [...prev, incomingMsg];
+        localStorage.setItem('ltrack_pairing_messages', JSON.stringify(updated));
+        return updated;
       });
     } else if (payload.type === 'pairing_chat_delete' && payload.data?.id) {
       const targetId = payload.data.id;
-      setPairingMessages((prev) => prev.filter((m) => m.id !== targetId));
+      setPairingMessages((prev) => {
+        const updated = prev.filter((m) => m.id !== targetId);
+        localStorage.setItem('ltrack_pairing_messages', JSON.stringify(updated));
+        return updated;
+      });
     } else if (payload.type === 'code_change' && payload.data?.code !== undefined) {
       setActivePairingRoom((prev) => (prev ? { ...prev, scratchpadCode: payload.data.code } : null));
     } else if (payload.type === 'notes_change' && payload.data?.notes !== undefined) {
       setActivePairingRoom((prev) => (prev ? { ...prev, sharedNotes: payload.data.notes } : null));
+    } else if (payload.type === 'incoming_call_request' && payload.data) {
+      if (payload.data.callerId !== currentUser.id) {
+        setIncomingCall(payload.data);
+      }
+    } else if (payload.type === 'call_accepted') {
+      setIsOutgoingCall(false);
+      setIncomingCall(null);
+      setActivePairingRoom((prev) => (prev ? { ...prev, callActive: true } : null));
+    } else if (payload.type === 'call_rejected') {
+      setIsOutgoingCall(false);
+      setIncomingCall(null);
+    } else if (payload.type === 'call_cancelled') {
+      setIncomingCall(null);
+      setIsOutgoingCall(false);
+    } else if (payload.type === 'call_ended') {
+      setActivePairingRoom((prev) => (prev ? { ...prev, callActive: false } : null));
+      setIsOutgoingCall(false);
+      setIncomingCall(null);
     } else if (payload.type === 'call_toggle') {
       setActivePairingRoom((prev) => (prev ? { ...prev, callActive: !prev.callActive } : null));
     } else if (payload.type === 'session_resolve') {
       setActivePairingRoom((prev) => (prev ? { ...prev, status: 'resolved' } : null));
+    }
+  };
+
+  // Broadcast payload across all active channels: Cloud P2P, Local BroadcastChannel, and WebSocket
+  const broadcastPayload = (payload: any) => {
+    // 1. Send via Cloud WebRTC DataConnection
+    if (dataConnRef.current && dataConnRef.current.open) {
+      try {
+        dataConnRef.current.send(payload);
+      } catch {}
+    }
+
+    // 2. Broadcast over local BroadcastChannel
+    if (broadcastRef.current) {
+      try {
+        broadcastRef.current.postMessage(payload);
+      } catch {}
+    }
+
+    // 3. Send over WebSocket if connected
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify(payload));
+      } catch {}
     }
   };
 
@@ -255,13 +310,81 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       return () => {
         channel.close();
       };
-    } catch {
-      // BroadcastChannel fallback
-    }
-  }, []);
+    } catch {}
+  }, [currentUser.id]);
 
-  // 2. Connect to WebSocket server
+  // 2. Initialize Cloud WebRTC PeerJS connection for internet multi-device sync
   useEffect(() => {
+    const peerId = `ltrack_usr_${currentUser.id.replace(/[^a-zA-Z0-9]/g, '')}`;
+    let peer: Peer | null = null;
+
+    try {
+      peer = new Peer(peerId, {
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      });
+      peerInstanceRef.current = peer;
+
+      peer.on('open', () => {
+        setIsConnected(true);
+      });
+
+      // Handle incoming WebRTC data connection from peer on another laptop
+      peer.on('connection', (conn) => {
+        dataConnRef.current = conn;
+        conn.on('data', (data) => {
+          handleRealtimePayload(data);
+        });
+      });
+
+      peer.on('error', () => {
+        setIsConnected(false);
+      });
+    } catch {
+      setIsConnected(false);
+    }
+
+    return () => {
+      if (peer) peer.destroy();
+    };
+  }, [currentUser.id]);
+
+  // Connect WebRTC DataConnection to the peer in active pairing room
+  useEffect(() => {
+    if (!peerInstanceRef.current || !activePairingRoom) return;
+
+    const isHost = currentUser.id === activePairingRoom.hostUser.id;
+    const peerUser = isHost ? activePairingRoom.partnerUser : activePairingRoom.hostUser;
+    const targetPeerId = `ltrack_usr_${peerUser.id.replace(/[^a-zA-Z0-9]/g, '')}`;
+
+    const connectToPeer = () => {
+      try {
+        const conn = peerInstanceRef.current!.connect(targetPeerId, {
+          reliable: true
+        });
+
+        conn.on('open', () => {
+          dataConnRef.current = conn;
+        });
+
+        conn.on('data', (data) => {
+          handleRealtimePayload(data);
+        });
+      } catch {}
+    };
+
+    const timer = setTimeout(connectToPeer, 1000);
+    return () => clearTimeout(timer);
+  }, [currentUser.id, activePairingRoom?.roomId]);
+
+  // 3. Fallback WebSocket connection for local dev
+  useEffect(() => {
+    if (window.location.protocol === 'https:') return;
+
     const wsUrl = `ws://${window.location.hostname}:8080/api/v1/ws/${currentUser.id}`;
     let socket: WebSocket | null = null;
 
@@ -269,29 +392,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       socket = new WebSocket(wsUrl);
       wsRef.current = socket;
 
-      socket.onopen = () => {
-        setIsConnected(true);
-      };
-
+      socket.onopen = () => setIsConnected(true);
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           handleRealtimePayload(data);
-        } catch {
-          // ignore
-        }
+        } catch {}
       };
-
-      socket.onclose = () => {
-        setIsConnected(false);
-      };
-
-      socket.onerror = () => {
-        setIsConnected(false);
-      };
-    } catch {
-      setIsConnected(false);
-    }
+      socket.onclose = () => {};
+    } catch {}
 
     return () => {
       if (socket) socket.close();
@@ -342,50 +451,31 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setPairingMessages((prev) => [...prev, newMessage]);
+    setPairingMessages((prev) => {
+      const updated = [...prev, newMessage];
+      localStorage.setItem('ltrack_pairing_messages', JSON.stringify(updated));
+      return updated;
+    });
 
-    const payload = { type: 'pairing_chat', data: newMessage };
-
-    // Broadcast over BroadcastChannel for instant cross-tab sync
-    if (broadcastRef.current) {
-      broadcastRef.current.postMessage(payload);
-    }
-
-    // Send over WebSocket to remote users
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(payload));
-    }
+    broadcastPayload({ type: 'pairing_chat', data: newMessage });
   };
 
   // Delete message for everyone in the room
   const deletePairingMessage = (id: string) => {
-    setPairingMessages((prev) => prev.filter((m) => m.id !== id));
+    setPairingMessages((prev) => {
+      const updated = prev.filter((m) => m.id !== id);
+      localStorage.setItem('ltrack_pairing_messages', JSON.stringify(updated));
+      return updated;
+    });
 
-    const payload = { type: 'pairing_chat_delete', data: { id } };
-
-    if (broadcastRef.current) {
-      broadcastRef.current.postMessage(payload);
-    }
-
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(payload));
-    }
+    broadcastPayload({ type: 'pairing_chat_delete', data: { id } });
   };
 
   // Real-time collaborative code sync
   const updateScratchpadCode = (code: string) => {
     if (activePairingRoom) {
       setActivePairingRoom((prev) => (prev ? { ...prev, scratchpadCode: code } : null));
-
-      const payload = { type: 'code_change', data: { code, userId: currentUser.id } };
-
-      if (broadcastRef.current) {
-        broadcastRef.current.postMessage(payload);
-      }
-
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(payload));
-      }
+      broadcastPayload({ type: 'code_change', data: { code, userId: currentUser.id } });
     }
   };
 
@@ -393,33 +483,65 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
   const updateSharedNotes = (notes: string) => {
     if (activePairingRoom) {
       setActivePairingRoom((prev) => (prev ? { ...prev, sharedNotes: notes } : null));
-
-      const payload = { type: 'notes_change', data: { notes, userId: currentUser.id } };
-
-      if (broadcastRef.current) {
-        broadcastRef.current.postMessage(payload);
-      }
-
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(payload));
-      }
+      broadcastPayload({ type: 'notes_change', data: { notes, userId: currentUser.id } });
     }
   };
 
-  // Toggle call state across participants
-  const toggleCall = () => {
+  // Start outgoing call to peer (Sends incoming call request with accept/reject prompt)
+  const initiateCall = () => {
+    if (!activePairingRoom) return;
+    setIsOutgoingCall(true);
+
+    const callPayload = {
+      callerId: currentUser.id,
+      callerName: currentUser.name,
+      callerAvatar: currentUser.avatar,
+      topicName: activePairingRoom.topicName
+    };
+
+    broadcastPayload({ type: 'incoming_call_request', data: callPayload });
+  };
+
+  // Accept incoming call from peer
+  const acceptIncomingCall = () => {
+    setIncomingCall(null);
+    setIsOutgoingCall(false);
     if (activePairingRoom) {
-      setActivePairingRoom((prev) => (prev ? { ...prev, callActive: !prev.callActive } : null));
+      setActivePairingRoom((prev) => (prev ? { ...prev, callActive: true } : null));
+      broadcastPayload({ type: 'call_accepted', data: { userId: currentUser.id } });
+    }
+  };
 
-      const payload = { type: 'call_toggle', data: { userId: currentUser.id } };
+  // Reject / Decline incoming call
+  const rejectIncomingCall = () => {
+    setIncomingCall(null);
+    setIsOutgoingCall(false);
+    broadcastPayload({ type: 'call_rejected', data: { userId: currentUser.id } });
+  };
 
-      if (broadcastRef.current) {
-        broadcastRef.current.postMessage(payload);
-      }
+  // Cancel outgoing calling request
+  const cancelOutgoingCall = () => {
+    setIsOutgoingCall(false);
+    broadcastPayload({ type: 'call_cancelled', data: { userId: currentUser.id } });
+  };
 
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(payload));
-      }
+  // End active live voice call
+  const endCall = () => {
+    setIsOutgoingCall(false);
+    setIncomingCall(null);
+    if (activePairingRoom) {
+      setActivePairingRoom((prev) => (prev ? { ...prev, callActive: false } : null));
+      broadcastPayload({ type: 'call_ended', data: { userId: currentUser.id } });
+    }
+  };
+
+  const toggleCall = () => {
+    if (activePairingRoom?.callActive) {
+      endCall();
+    } else if (isOutgoingCall) {
+      cancelOutgoingCall();
+    } else {
+      initiateCall();
     }
   };
 
@@ -453,21 +575,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
   const resolvePairingSession = () => {
     if (activePairingRoom) {
       setActivePairingRoom((prev) => (prev ? { ...prev, status: 'resolved' } : null));
-
-      const payload = { type: 'session_resolve', data: { roomId: activePairingRoom.roomId } };
-
-      if (broadcastRef.current) {
-        broadcastRef.current.postMessage(payload);
-      }
-
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(payload));
-      }
+      broadcastPayload({ type: 'session_resolve', data: { roomId: activePairingRoom.roomId } });
     }
-  };
-
-  const closePairingSession = () => {
-    setActivePairingRoom(null);
   };
 
   return (
@@ -477,22 +586,29 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         onlinePresence,
         notifications,
         unreadCount,
+        myPresenceStatus,
         activePairingRoom,
         pairingMessages,
-        myPresenceStatus,
+        incomingCall,
+        isOutgoingCall,
         setMyPresenceStatus,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         clearNotification,
         sendPairingMessage,
         deletePairingMessage,
+        updateScrpadCode: updateScratchpadCode,
         updateScratchpadCode,
         updateSharedNotes,
+        initiateCall,
+        acceptIncomingCall,
+        rejectIncomingCall,
+        cancelOutgoingCall,
+        endCall,
         toggleCall,
         startPairingSession,
-        resolvePairingSession,
-        closePairingSession
-      }}
+        resolvePairingSession
+      } as any}
     >
       {children}
     </RealtimeContext.Provider>

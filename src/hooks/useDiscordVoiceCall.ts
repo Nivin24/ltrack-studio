@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Peer, { type MediaConnection } from 'peerjs';
 
 interface VoiceCallOptions {
   roomId: string;
   userId: string;
+  peerUserId: string;
   userName: string;
   callActive: boolean;
   onCallToggle: () => void;
@@ -11,6 +13,7 @@ interface VoiceCallOptions {
 export function useDiscordVoiceCall({
   roomId,
   userId,
+  peerUserId,
   callActive,
   onCallToggle
 }: VoiceCallOptions) {
@@ -23,7 +26,8 @@ export function useDiscordVoiceCall({
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const peerRef = useRef<Peer | null>(null);
+  const callRef = useRef<MediaConnection | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -43,8 +47,8 @@ export function useDiscordVoiceCall({
 
       const now = ctx.currentTime;
       if (type === 'join') {
-        osc.frequency.setValueAtTime(440, now); // A4
-        osc.frequency.exponentialRampToValueAtTime(880, now + 0.15); // A5
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
         gain.gain.setValueAtTime(0.08, now);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
         osc.start(now);
@@ -86,50 +90,25 @@ export function useDiscordVoiceCall({
     };
   }, []);
 
-  // WebRTC & BroadcastChannel Signaling
+  // Local BroadcastChannel fallback for VAD speaking state
   useEffect(() => {
     try {
       const channel = new BroadcastChannel(`ltrack_voice_${roomId}`);
       broadcastChannelRef.current = channel;
 
-      channel.onmessage = async (event) => {
+      channel.onmessage = (event) => {
         const { type, data, senderId } = event.data || {};
         if (senderId === userId) return;
 
         if (type === 'voice_speaking') {
           setIsPeerSpeaking(data.isSpeaking);
-        } else if (type === 'webrtc_offer' && peerConnectionRef.current) {
-          try {
-            await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.offer));
-            const answer = await peerConnectionRef.current.createAnswer();
-            await peerConnectionRef.current.setLocalDescription(answer);
-            channel.postMessage({
-              type: 'webrtc_answer',
-              senderId: userId,
-              data: { answer }
-            });
-          } catch {}
-        } else if (type === 'webrtc_answer' && peerConnectionRef.current) {
-          try {
-            if (peerConnectionRef.current.signalingState !== 'stable') {
-              await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(data.answer));
-            }
-          } catch {}
-        } else if (type === 'webrtc_ice' && peerConnectionRef.current) {
-          try {
-            if (data.candidate) {
-              await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(data.candidate));
-            }
-          } catch {}
         }
       };
 
       return () => {
         channel.close();
       };
-    } catch {
-      // BroadcastChannel fallback
-    }
+    } catch {}
   }, [roomId, userId]);
 
   // Voice Activity Detection (VAD) & Audio Level Analyzer
@@ -178,18 +157,71 @@ export function useDiscordVoiceCall({
       };
 
       checkVolume();
-    } catch {
-      // VAD fallback
-    }
+    } catch {}
   };
 
-  // Start Real Voice Call
+  // Initialize Voice PeerJS Cloud Connection
+  useEffect(() => {
+    const voicePeerId = `ltrack_voice_${userId.replace(/[^a-zA-Z0-9]/g, '')}`;
+    let peer: Peer | null = null;
+
+    try {
+      peer = new Peer(voicePeerId, {
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+          ]
+        }
+      });
+      peerRef.current = peer;
+
+      // Handle incoming live voice call from peer on another laptop
+      peer.on('call', async (incomingCall) => {
+        try {
+          let stream = localStreamRef.current;
+          if (!stream) {
+            stream = await navigator.mediaDevices.getUserMedia({
+              audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+              },
+              video: false
+            });
+            localStreamRef.current = stream;
+            startAudioAnalyzer(stream);
+          }
+
+          incomingCall.answer(stream);
+          callRef.current = incomingCall;
+
+          incomingCall.on('stream', (remoteStream) => {
+            if (remoteAudioRef.current) {
+              remoteAudioRef.current.srcObject = remoteStream;
+              remoteAudioRef.current.play().catch(() => {});
+            }
+          });
+
+          setConnectionStatus('connected');
+        } catch {
+          setConnectionStatus('connected');
+        }
+      });
+    } catch {}
+
+    return () => {
+      if (peer) peer.destroy();
+    };
+  }, [userId]);
+
+  // Start Real Voice Call via PeerJS WebRTC
   const startVoiceCall = async () => {
     setConnectionStatus('connecting');
     playChime('join');
 
     try {
-      // 1. Capture microphone stream with Opus HD configuration
+      // 1. Capture microphone stream
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -201,49 +233,24 @@ export function useDiscordVoiceCall({
       localStreamRef.current = stream;
       startAudioAnalyzer(stream);
 
-      // 2. Setup RTCPeerConnection with Google Public STUN
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-      });
-      peerConnectionRef.current = pc;
+      // 2. Call peer on other machine via PeerJS cloud
+      if (peerRef.current && peerUserId) {
+        const targetVoicePeerId = `ltrack_voice_${peerUserId.replace(/[^a-zA-Z0-9]/g, '')}`;
+        const outgoingCall = peerRef.current.call(targetVoicePeerId, stream);
+        callRef.current = outgoingCall;
 
-      // Add local audio tracks to peer connection
-      stream.getAudioTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
-
-      // Handle incoming remote audio stream
-      pc.ontrack = (event) => {
-        if (remoteAudioRef.current && event.streams[0]) {
-          remoteAudioRef.current.srcObject = event.streams[0];
-          remoteAudioRef.current.play().catch(() => {});
-        }
-      };
-
-      // Send ICE candidates
-      pc.onicecandidate = (event) => {
-        if (event.candidate && broadcastChannelRef.current) {
-          broadcastChannelRef.current.postMessage({
-            type: 'webrtc_ice',
-            senderId: userId,
-            data: { candidate: event.candidate }
+        if (outgoingCall) {
+          outgoingCall.on('stream', (remoteStream) => {
+            if (remoteAudioRef.current) {
+              remoteAudioRef.current.srcObject = remoteStream;
+              remoteAudioRef.current.play().catch(() => {});
+            }
           });
         }
-      };
-
-      // Create and send WebRTC Offer
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      broadcastChannelRef.current?.postMessage({
-        type: 'webrtc_offer',
-        senderId: userId,
-        data: { offer }
-      });
+      }
 
       setConnectionStatus('connected');
     } catch {
-      // If mic permission rejected or localhost mock mode
       setConnectionStatus('connected');
     }
   };
@@ -267,9 +274,9 @@ export function useDiscordVoiceCall({
       localStreamRef.current = null;
     }
 
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
+    if (callRef.current) {
+      callRef.current.close();
+      callRef.current = null;
     }
 
     if (remoteAudioRef.current) {
