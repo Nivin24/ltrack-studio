@@ -1003,7 +1003,7 @@ export const LivePairingStudioView: React.FC = () => {
           </div>
 
           {/* Messages Feed with Auto-Scroll & Unread Marker */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
             {pairingMessages.map((msg, idx) => {
               const isMine = msg.senderId === currentUser.id;
               const isConfirmingDelete = confirmDeleteMsgId === msg.id;
@@ -1043,7 +1043,7 @@ export const LivePairingStudioView: React.FC = () => {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '85%' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', alignSelf: isMine ? 'flex-end' : 'flex-start', maxWidth: '90%', minWidth: 0, width: 'fit-content' }}>
                     {!isMine && (
                       <img src={msg.senderAvatar} alt={msg.senderName} style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px', flexShrink: 0 }} />
                     )}
@@ -1055,7 +1055,10 @@ export const LivePairingStudioView: React.FC = () => {
                       borderRadius: '10px',
                       padding: '6px 10px',
                       position: 'relative',
-                      width: 'fit-content'
+                      width: '100%',
+                      minWidth: 0,
+                      maxWidth: '100%',
+                      overflow: 'hidden'
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: isMine ? '#d4a373' : '#34d399' }}>
@@ -1091,7 +1094,7 @@ export const LivePairingStudioView: React.FC = () => {
 
                       {/* Text Message Content */}
                       {msg.text && (
-                        <p style={{ fontSize: '0.78rem', color: '#eae6e1', lineHeight: 1.35, margin: 0 }}>
+                        <p style={{ fontSize: '0.78rem', color: '#eae6e1', lineHeight: 1.35, margin: 0, wordBreak: 'break-word' }}>
                           {msg.text}
                         </p>
                       )}
@@ -1108,23 +1111,30 @@ export const LivePairingStudioView: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Code Snippet Box with Python Highlighting */}
+                      {/* Code Snippet Box with Isolated Horizontal Scrollbar */}
                       {msg.codeSnippet && (
-                        <pre style={{
+                        <div style={{
                           marginTop: '4px',
-                          background: '#0a0a0e',
-                          borderRadius: '6px',
-                          padding: '6px 8px',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          fontFamily: 'ui-monospace, SFMono-Regular, "Fira Code", monospace',
-                          fontSize: '0.72rem',
-                          lineHeight: 1.4,
+                          maxWidth: '100%',
                           overflowX: 'auto',
-                          whiteSpace: 'pre',
-                          margin: '4px 0 0 0'
+                          borderRadius: '6px',
+                          background: '#0a0a0e',
+                          border: '1px solid rgba(255, 255, 255, 0.08)'
                         }}>
-                          {highlightPythonCode(msg.codeSnippet)}
-                        </pre>
+                          <pre style={{
+                            padding: '6px 8px',
+                            fontFamily: 'ui-monospace, SFMono-Regular, "Fira Code", monospace',
+                            fontSize: '0.72rem',
+                            lineHeight: 1.4,
+                            whiteSpace: 'pre',
+                            margin: 0,
+                            display: 'block',
+                            width: 'fit-content',
+                            minWidth: '100%'
+                          }}>
+                            {highlightPythonCode(msg.codeSnippet)}
+                          </pre>
+                        </div>
                       )}
 
                       {/* WhatsApp-Style Inline Delete Confirmation Dialog */}
