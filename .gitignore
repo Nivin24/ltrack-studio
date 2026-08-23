@@ -39,6 +39,11 @@ venv.bak/
 .env.test.local
 .env.production.local
 
+# Internal Prompts & AI Agent Workspaces
+STITCH_UI_PROMPT.md
+*.prompt.md
+.agents/
+
 # OS & Editor
 .DS_Store
 .AppleDouble
