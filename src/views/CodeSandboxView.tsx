@@ -15,7 +15,9 @@ import {
   Clock,
   Trash2,
   CornerDownLeft,
-  Sparkles
+  Sparkles,
+  Copy,
+  Check
 } from 'lucide-react';
 
 export const CodeSandboxView: React.FC = () => {
@@ -50,6 +52,8 @@ asyncio.run(main())`;
   const [scratchpadLogs, setScratchpadLogs] = useState<string[]>([]);
   const [isScratchpadRunning, setIsScratchpadRunning] = useState(false);
   const [scratchpadExecutionTime, setScratchpadExecutionTime] = useState<number | null>(null);
+  const [copiedConsoleLogs, setCopiedConsoleLogs] = useState(false);
+  const [copiedQuizCode, setCopiedQuizCode] = useState(false);
 
   // Challenge Execution State
   const [isRunning, setIsRunning] = useState(false);
@@ -493,9 +497,39 @@ asyncio.run(main())`;
             {currentQuiz.question}
           </h3>
 
-          {/* Optional Code Snippet */}
+          {/* Optional Code Snippet with Copy Button */}
           {currentQuiz.codeSnippet && (
-            <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '14px 18px', fontFamily: 'monospace', fontSize: '0.82rem', color: '#d4a373', marginBottom: '18px', whiteSpace: 'pre-wrap' }}>
+            <div style={{ position: 'relative', background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '14px 18px', fontFamily: 'monospace', fontSize: '0.82rem', color: '#d4a373', marginBottom: '18px', whiteSpace: 'pre-wrap' }}>
+              <button
+                onClick={() => {
+                  if (currentQuiz.codeSnippet) {
+                    navigator.clipboard.writeText(currentQuiz.codeSnippet);
+                    setCopiedQuizCode(true);
+                    setTimeout(() => setCopiedQuizCode(false), 2000);
+                  }
+                }}
+                type="button"
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  right: '10px',
+                  background: copiedQuizCode ? 'rgba(52, 211, 153, 0.2)' : 'rgba(20, 20, 26, 0.8)',
+                  border: copiedQuizCode ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '5px',
+                  padding: '3px 7px',
+                  color: copiedQuizCode ? '#34d399' : '#d4a373',
+                  fontSize: '0.68rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px'
+                }}
+                title="Copy Question Code"
+              >
+                {copiedQuizCode ? <Check size={10} color="#34d399" /> : <Copy size={10} />}
+                <span>{copiedQuizCode ? 'Copied' : 'Copy'}</span>
+              </button>
               {currentQuiz.codeSnippet}
             </div>
           )}
@@ -710,13 +744,26 @@ asyncio.run(main())`;
                   </span>
                 )}
                 {scratchpadLogs.length > 0 && (
-                  <button
-                    onClick={() => setScratchpadLogs([])}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    title="Clear console output"
-                  >
-                    <Trash2 size={13} /> Clear
-                  </button>
+                  <>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(scratchpadLogs.join('\n'));
+                        setCopiedConsoleLogs(true);
+                        setTimeout(() => setCopiedConsoleLogs(false), 2000);
+                      }}
+                      style={{ background: 'none', border: 'none', color: copiedConsoleLogs ? '#34d399' : '#d4a373', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      title="Copy all console output"
+                    >
+                      {copiedConsoleLogs ? <Check size={13} color="#34d399" /> : <Copy size={13} />} {copiedConsoleLogs ? 'Copied' : 'Copy'}
+                    </button>
+                    <button
+                      onClick={() => setScratchpadLogs([])}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      title="Clear console output"
+                    >
+                      <Trash2 size={13} /> Clear
+                    </button>
+                  </>
                 )}
               </div>
             </div>

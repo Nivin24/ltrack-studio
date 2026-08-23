@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
+import { Copy, Check } from 'lucide-react';
 
 export interface CollaboratorTag {
   name: string;
@@ -13,6 +14,7 @@ interface PythonCodeEditorProps {
   height?: string;
   readOnly?: boolean;
   activeBorderColor?: string;
+  showCopyButton?: boolean;
 }
 
 // Highlight Python syntax tokens with color classification
@@ -29,84 +31,82 @@ export function highlightPythonCode(code: string): React.ReactNode[] {
 
     while ((match = tokenRegex.exec(line)) !== null) {
       const [
-        fullMatch,
+        token,
         comment,
-        stringLit,
+        str,
         keyword,
-        builtinType,
-        numberLit,
-        funcName,
+        builtin,
+        num,
+        funcCall,
         symbol,
         whitespace,
-        identifier
+        ident
       ] = match;
 
-      const key = `${lineIdx}-${keyIdx++}`;
+      const key = `${lineIdx}_${keyIdx++}`;
 
       if (comment) {
         elements.push(
-          <span key={key} style={{ color: '#736d65', fontStyle: 'italic' }}>
+          <span key={key} style={{ color: '#6e7681', fontStyle: 'italic' }}>
             {comment}
           </span>
         );
-      } else if (stringLit) {
+      } else if (str) {
         elements.push(
-          <span key={key} style={{ color: '#34d399', fontWeight: 500 }}>
-            {stringLit}
+          <span key={key} style={{ color: '#a5d6ff' }}>
+            {str}
           </span>
         );
       } else if (keyword) {
         elements.push(
-          <span key={key} style={{ color: '#e58872', fontWeight: 700 }}>
+          <span key={key} style={{ color: '#ff7b72', fontWeight: 600 }}>
             {keyword}
           </span>
         );
-      } else if (builtinType) {
+      } else if (builtin) {
         elements.push(
-          <span key={key} style={{ color: '#38bdf8', fontWeight: 600 }}>
-            {builtinType}
+          <span key={key} style={{ color: '#79c0ff', fontWeight: 600 }}>
+            {builtin}
           </span>
         );
-      } else if (numberLit) {
+      } else if (num) {
         elements.push(
-          <span key={key} style={{ color: '#fbbf24', fontWeight: 600 }}>
-            {numberLit}
+          <span key={key} style={{ color: '#79c0ff' }}>
+            {num}
           </span>
         );
-      } else if (funcName) {
+      } else if (funcCall) {
         elements.push(
-          <span key={key} style={{ color: '#e5b982', fontWeight: 600 }}>
-            {funcName}
+          <span key={key} style={{ color: '#d2a8ff', fontWeight: 500 }}>
+            {funcCall}
           </span>
         );
       } else if (symbol) {
         elements.push(
-          <span key={key} style={{ color: '#c4b5a0' }}>
+          <span key={key} style={{ color: '#ff7b72' }}>
             {symbol}
           </span>
         );
       } else if (whitespace) {
+        elements.push(<span key={key}>{whitespace}</span>);
+      } else if (ident) {
         elements.push(
-          <span key={key}>
-            {whitespace}
-          </span>
-        );
-      } else if (identifier) {
-        elements.push(
-          <span key={key} style={{ color: '#eae6e1' }}>
-            {identifier}
+          <span key={key} style={{ color: '#e6edf3' }}>
+            {ident}
           </span>
         );
       } else {
-        elements.push(fullMatch);
+        elements.push(<span key={key}>{token}</span>);
       }
     }
 
+    if (elements.length === 0) {
+      elements.push(<span key={`empty_${lineIdx}`}>&nbsp;</span>);
+    }
+
     return (
-      <div key={lineIdx} style={{ minHeight: '1.5em', display: 'flex' }}>
-        <span style={{ display: 'inline-block', width: '100%' }}>
-          {elements.length > 0 ? elements : '\u00A0'}
-        </span>
+      <div key={lineIdx} style={{ minHeight: '1.55em' }}>
+        {elements}
       </div>
     );
   });
@@ -118,11 +118,13 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
   onKeyDown,
   height = '360px',
   readOnly = false,
-  activeBorderColor
+  activeBorderColor,
+  showCopyButton = true
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
   const linesCount = Math.max(1, code.split('\n').length);
   const lineNumbers = Array.from({ length: linesCount }, (_, i) => i + 1);
@@ -139,26 +141,180 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
     }
   };
 
-  // Handle Tab indentation inside textarea
-  const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
+  const handleCopyCode = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const updatedCode = code.substring(0, start) + '    ' + code.substring(end);
+  // Python IDE Smart Auto-Indentation & Keyboard Engine
+  const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    // 1. Enter Key: Python Smart Auto-Indentation (after colons :, inside brackets, etc.)
+    if (e.key === 'Enter') {
+      e.preventDefault();
+
+      const beforeCursor = code.substring(0, start);
+      const afterCursor = code.substring(end);
+      const lines = beforeCursor.split('\n');
+      const currentLine = lines[lines.length - 1];
+
+      // Extract leading indentation spaces from current line
+      const indentMatch = currentLine.match(/^(\s*)/);
+      let indent = indentMatch ? indentMatch[1] : '';
+
+      // If line ends with a colon `:`, auto-indent by 4 spaces
+      const trimmedLine = currentLine.trim();
+      const needsColonIndent = trimmedLine.endsWith(':');
+      if (needsColonIndent) {
+        indent += '    ';
+      }
+
+      // Check if cursor is between matching braces/brackets ({|}, [|], (|))
+      const charBefore = beforeCursor.slice(-1);
+      const charAfter = afterCursor.slice(0, 1);
+      const isBetweenBrackets =
+        (charBefore === '{' && charAfter === '}') ||
+        (charBefore === '[' && charAfter === ']') ||
+        (charBefore === '(' && charAfter === ')');
+
+      let updatedCode = '';
+      let newCursorPos = start + 1 + indent.length;
+
+      if (isBetweenBrackets) {
+        // Create extra indented middle line and put closing bracket on a new line
+        const extraIndent = indent + '    ';
+        updatedCode = `${beforeCursor}\n${extraIndent}\n${indentMatch ? indentMatch[1] : ''}${afterCursor}`;
+        newCursorPos = start + 1 + extraIndent.length;
+      } else {
+        updatedCode = `${beforeCursor}\n${indent}${afterCursor}`;
+      }
 
       onChange(updatedCode);
 
-      // Restore cursor position after state re-render
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = newCursorPos;
+        }
+      }, 0);
+      return;
+    }
+
+    // 2. Tab Key: Smart Indent / Multi-line Block Indent / Shift+Tab Unindent
+    if (e.key === 'Tab') {
+      e.preventDefault();
+
+      // Multi-line selection indent/unindent
+      if (start !== end && code.substring(start, end).includes('\n')) {
+        const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+        const lineEnd = code.indexOf('\n', end);
+        const endPos = lineEnd === -1 ? code.length : lineEnd;
+
+        const selectedText = code.substring(lineStart, endPos);
+        const selectedLines = selectedText.split('\n');
+
+        let modifiedText = '';
+        if (e.shiftKey) {
+          // Unindent all selected lines by up to 4 spaces
+          modifiedText = selectedLines
+            .map((line) => line.replace(/^ {1,4}/, ''))
+            .join('\n');
+        } else {
+          // Indent all selected lines by 4 spaces
+          modifiedText = selectedLines.map((line) => '    ' + line).join('\n');
+        }
+
+        const updatedCode = code.substring(0, lineStart) + modifiedText + code.substring(endPos);
+        onChange(updatedCode);
+
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = lineStart;
+            textareaRef.current.selectionEnd = lineStart + modifiedText.length;
+          }
+        }, 0);
+        return;
+      }
+
+      // Single line Shift+Tab unindent
+      if (e.shiftKey) {
+        const lineStart = code.lastIndexOf('\n', start - 1) + 1;
+        const currentLine = code.substring(lineStart, start);
+        if (currentLine.startsWith('    ')) {
+          const updatedCode = code.substring(0, lineStart) + currentLine.substring(4) + code.substring(start);
+          onChange(updatedCode);
+          setTimeout(() => {
+            if (textareaRef.current) {
+              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = Math.max(lineStart, start - 4);
+            }
+          }, 0);
+        }
+        return;
+      }
+
+      // Single line 4-space Tab insert
+      const updatedCode = code.substring(0, start) + '    ' + code.substring(end);
+      onChange(updatedCode);
+
       setTimeout(() => {
         if (textareaRef.current) {
           textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 4;
         }
       }, 0);
       return;
+    }
+
+    // 3. Smart Backspace: Remove 4 spaces at once if at indentation boundary
+    if (e.key === 'Backspace' && start === end) {
+      const beforeCursor = code.substring(0, start);
+      const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+      const currentLineBeforeCursor = beforeCursor.substring(lineStart);
+
+      if (currentLineBeforeCursor.length > 0 && currentLineBeforeCursor.length % 4 === 0 && /^ +$/.test(currentLineBeforeCursor)) {
+        e.preventDefault();
+        const updatedCode = code.substring(0, start - 4) + code.substring(end);
+        onChange(updatedCode);
+
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start - 4;
+          }
+        }, 0);
+        return;
+      }
+    }
+
+    // 4. Auto-Close Pairs: ( ), [ ], { }, " ", ' '
+    const pairMap: Record<string, string> = {
+      '(': ')',
+      '[': ']',
+      '{': '}',
+      '"': '"',
+      "'": "'"
+    };
+
+    if (pairMap[e.key] && !readOnly) {
+      const closingChar = pairMap[e.key];
+      // If user selected text, wrap selection with pair
+      if (start !== end) {
+        e.preventDefault();
+        const selectedText = code.substring(start, end);
+        const updatedCode = code.substring(0, start) + e.key + selectedText + closingChar + code.substring(end);
+        onChange(updatedCode);
+        setTimeout(() => {
+          if (textareaRef.current) {
+            textareaRef.current.selectionStart = start + 1;
+            textareaRef.current.selectionEnd = end + 1;
+          }
+        }, 0);
+        return;
+      }
     }
 
     if (onKeyDown) {
@@ -190,6 +346,38 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
         transition: 'border-color 0.25s ease, box-shadow 0.25s ease'
       }}
     >
+      {/* Floating Top-Right Copy Button */}
+      {showCopyButton && (
+        <button
+          onClick={handleCopyCode}
+          type="button"
+          title="Copy Python Code"
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '10px',
+            zIndex: 10,
+            background: copied ? 'rgba(52, 211, 153, 0.22)' : 'rgba(20, 20, 26, 0.82)',
+            backdropFilter: 'blur(8px)',
+            border: copied ? '1px solid rgba(52, 211, 153, 0.45)' : '1px solid rgba(255, 255, 255, 0.14)',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            color: copied ? '#34d399' : '#d4a373',
+            fontSize: '0.68rem',
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            transition: 'all 0.18s ease',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)'
+          }}
+        >
+          {copied ? <Check size={11} color="#34d399" /> : <Copy size={11} />}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
+        </button>
+      )}
+
       {/* Line Numbers Gutter */}
       <div
         ref={lineNumbersRef}

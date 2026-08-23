@@ -24,6 +24,70 @@ import {
   Video
 } from 'lucide-react';
 
+const ChatCodeSnippetBox: React.FC<{ code: string }> = ({ code }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div style={{
+      marginTop: '4px',
+      maxWidth: '100%',
+      overflowX: 'auto',
+      borderRadius: '6px',
+      background: '#0a0a0e',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      position: 'relative'
+    }}>
+      <button
+        onClick={handleCopy}
+        type="button"
+        title="Copy Code Snippet"
+        style={{
+          position: 'sticky',
+          left: 'calc(100% - 64px)',
+          float: 'right',
+          margin: '3px 4px 0 0',
+          zIndex: 5,
+          background: copied ? 'rgba(52, 211, 153, 0.22)' : 'rgba(20, 20, 26, 0.85)',
+          backdropFilter: 'blur(6px)',
+          border: copied ? '1px solid rgba(52, 211, 153, 0.45)' : '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '4px',
+          padding: '2px 6px',
+          color: copied ? '#34d399' : '#d4a373',
+          fontSize: '0.64rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '3px'
+        }}
+      >
+        {copied ? <Check size={10} color="#34d399" /> : <Copy size={10} />}
+        <span>{copied ? 'Copied' : 'Copy'}</span>
+      </button>
+      <pre style={{
+        padding: '6px 8px',
+        fontFamily: 'ui-monospace, SFMono-Regular, "Fira Code", monospace',
+        fontSize: '0.72rem',
+        lineHeight: 1.4,
+        whiteSpace: 'pre',
+        margin: 0,
+        display: 'block',
+        width: 'fit-content',
+        minWidth: '100%'
+      }}>
+        {highlightPythonCode(code)}
+      </pre>
+    </div>
+  );
+};
+
 export const LivePairingStudioView: React.FC = () => {
   const {
     activePairingRoom,
@@ -47,6 +111,7 @@ export const LivePairingStudioView: React.FC = () => {
   const [snippetInput, setSnippetInput] = useState('');
   const [showSnippetBox, setShowSnippetBox] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedStdout, setCopiedStdout] = useState(false);
 
   // Real-time active editing person tracker (code editor)
   const [typingUserId, setTypingUserId] = useState<string | null>(currentUser.id);
@@ -886,12 +951,28 @@ export const LivePairingStudioView: React.FC = () => {
                   <span style={{ color: '#34d399', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <Terminal size={12} /> Execution Output (Ran by {executionOutput.ranBy} • {executionOutput.timeMs}ms)
                   </span>
-                  <button
-                    onClick={() => setExecutionOutput(null)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '0.68rem' }}
-                  >
-                    Clear Console
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      onClick={() => {
+                        if (executionOutput?.stdout) {
+                          navigator.clipboard.writeText(executionOutput.stdout);
+                          setCopiedStdout(true);
+                          setTimeout(() => setCopiedStdout(false), 2000);
+                        }
+                      }}
+                      style={{ background: 'none', border: 'none', color: copiedStdout ? '#34d399' : '#d4a373', cursor: 'pointer', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: '3px' }}
+                      title="Copy terminal output"
+                    >
+                      {copiedStdout ? <Check size={11} color="#34d399" /> : <Copy size={11} />}
+                      <span>{copiedStdout ? 'Copied' : 'Copy Output'}</span>
+                    </button>
+                    <button
+                      onClick={() => setExecutionOutput(null)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '0.68rem' }}
+                    >
+                      Clear Console
+                    </button>
+                  </div>
                 </div>
                 <pre style={{ margin: 0, color: '#eae6e1', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>
                   {executionOutput.stdout}
@@ -1111,30 +1192,9 @@ export const LivePairingStudioView: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Code Snippet Box with Isolated Horizontal Scrollbar */}
+                      {/* Code Snippet Box with Isolated Horizontal Scrollbar & Copy Button */}
                       {msg.codeSnippet && (
-                        <div style={{
-                          marginTop: '4px',
-                          maxWidth: '100%',
-                          overflowX: 'auto',
-                          borderRadius: '6px',
-                          background: '#0a0a0e',
-                          border: '1px solid rgba(255, 255, 255, 0.08)'
-                        }}>
-                          <pre style={{
-                            padding: '6px 8px',
-                            fontFamily: 'ui-monospace, SFMono-Regular, "Fira Code", monospace',
-                            fontSize: '0.72rem',
-                            lineHeight: 1.4,
-                            whiteSpace: 'pre',
-                            margin: 0,
-                            display: 'block',
-                            width: 'fit-content',
-                            minWidth: '100%'
-                          }}>
-                            {highlightPythonCode(msg.codeSnippet)}
-                          </pre>
-                        </div>
+                        <ChatCodeSnippetBox code={msg.codeSnippet} />
                       )}
 
                       {/* WhatsApp-Style Inline Delete Confirmation Dialog */}

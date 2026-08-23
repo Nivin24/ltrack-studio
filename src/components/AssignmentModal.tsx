@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLTrack } from '../context/LTrackContext';
 import type { Assignment, Submission } from '../types/ltrack';
-import { X, Send, Award, GitPullRequest, Code, FileText } from 'lucide-react';
+import { X, Send, Award, GitPullRequest, Code, FileText, Copy, Check } from 'lucide-react';
 
 interface SubmitModalProps {
   assignment: Assignment | null;
@@ -150,6 +150,8 @@ export const GradeAssignmentModal: React.FC<GradeModalProps> = ({ submission, on
     (codeQuality + understanding + testing + documentation) / 4
   ).toFixed(1);
 
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ padding: '24px', maxWidth: '650px' }}>
@@ -179,9 +181,41 @@ export const GradeAssignmentModal: React.FC<GradeModalProps> = ({ submission, on
             <strong style={{ color: 'var(--text-muted)' }}>Notes: </strong> {submission.notes}
           </div>
           {submission.codeSnippet && (
-            <pre style={{ maxHeight: '140px', overflowY: 'auto', marginTop: '6px' }}>
-              {submission.codeSnippet}
-            </pre>
+            <div style={{ position: 'relative', marginTop: '6px' }}>
+              <button
+                onClick={() => {
+                  if (submission.codeSnippet) {
+                    navigator.clipboard.writeText(submission.codeSnippet);
+                    setCopiedSnippet(true);
+                    setTimeout(() => setCopiedSnippet(false), 2000);
+                  }
+                }}
+                type="button"
+                style={{
+                  position: 'absolute',
+                  top: '6px',
+                  right: '8px',
+                  background: copiedSnippet ? 'rgba(52, 211, 153, 0.2)' : 'rgba(20, 20, 26, 0.8)',
+                  border: copiedSnippet ? '1px solid rgba(52, 211, 153, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: '4px',
+                  padding: '2px 6px',
+                  color: copiedSnippet ? '#34d399' : '#d4a373',
+                  fontSize: '0.66rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px'
+                }}
+                title="Copy submission code"
+              >
+                {copiedSnippet ? <Check size={10} color="#34d399" /> : <Copy size={10} />}
+                <span>{copiedSnippet ? 'Copied' : 'Copy'}</span>
+              </button>
+              <pre style={{ maxHeight: '140px', overflowY: 'auto', margin: 0 }}>
+                {submission.codeSnippet}
+              </pre>
+            </div>
           )}
         </div>
 
