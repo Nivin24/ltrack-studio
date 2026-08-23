@@ -91,6 +91,7 @@ export const LivePairingStudioView: React.FC = () => {
     isDeafened,
     isLocalSpeaking,
     isPeerSpeaking,
+    remoteAudioRef,
     toggleMute,
     toggleDeafen
   } = useDiscordVoiceCall({
@@ -390,6 +391,9 @@ export const LivePairingStudioView: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', height: '100%', minHeight: 0, flex: 1, width: '100%', position: 'relative' }}>
+      {/* DOM-Mounted Audio Element for Remote WebRTC Voice Playback */}
+      <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
+
       {/* Incoming Call Request Floating Notification Dialog */}
       {incomingCall && (
         <div
