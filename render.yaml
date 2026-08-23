@@ -2,6 +2,9 @@ services:
   - type: web
     name: ltrack-api
     runtime: python
+    plan: free
+    region: oregon
+    rootDir: .
     buildCommand: pip install -r backend/requirements.txt
     startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
     envVars:
