@@ -54,6 +54,8 @@ asyncio.run(main())`;
   const [scratchpadExecutionTime, setScratchpadExecutionTime] = useState<number | null>(null);
   const [copiedConsoleLogs, setCopiedConsoleLogs] = useState(false);
   const [copiedQuizCode, setCopiedQuizCode] = useState(false);
+  const [copiedChallengeCode, setCopiedChallengeCode] = useState(false);
+  const [copiedScratchpadCode, setCopiedScratchpadCode] = useState(false);
 
   // Challenge Execution State
   const [isRunning, setIsRunning] = useState(false);
@@ -397,7 +399,19 @@ asyncio.run(main())`;
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(userCode);
+                      setCopiedChallengeCode(true);
+                      setTimeout(() => setCopiedChallengeCode(false), 2000);
+                    }}
+                    style={{ background: 'none', border: 'none', color: copiedChallengeCode ? '#34d399' : '#d4a373', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    title="Copy challenge code"
+                  >
+                    {copiedChallengeCode ? <Check size={13} color="#34d399" /> : <Copy size={13} />} {copiedChallengeCode ? 'Copied' : 'Copy'}
+                  </button>
+
                   <button
                     onClick={() => setUserCode(selectedChallenge.initialCode)}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -666,6 +680,18 @@ asyncio.run(main())`;
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(scratchpadCode);
+                    setCopiedScratchpadCode(true);
+                    setTimeout(() => setCopiedScratchpadCode(false), 2000);
+                  }}
+                  style={{ background: 'none', border: 'none', color: copiedScratchpadCode ? '#34d399' : '#d4a373', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  title="Copy scratchpad code"
+                >
+                  {copiedScratchpadCode ? <Check size={13} color="#34d399" /> : <Copy size={13} />} {copiedScratchpadCode ? 'Copied' : 'Copy'}
+                </button>
+
                 <button
                   onClick={() => setScratchpadCode(defaultScratchpadCode)}
                   style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}

@@ -1,5 +1,4 @@
-import React, { useRef, useState } from 'react';
-import { Copy, Check } from 'lucide-react';
+import React, { useRef } from 'react';
 
 export interface CollaboratorTag {
   name: string;
@@ -14,7 +13,6 @@ interface PythonCodeEditorProps {
   height?: string;
   readOnly?: boolean;
   activeBorderColor?: string;
-  showCopyButton?: boolean;
 }
 
 // Highlight Python syntax tokens with color classification
@@ -118,13 +116,11 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
   onKeyDown,
   height = '360px',
   readOnly = false,
-  activeBorderColor,
-  showCopyButton = true
+  activeBorderColor
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const preRef = useRef<HTMLPreElement>(null);
   const lineNumbersRef = useRef<HTMLDivElement>(null);
-  const [copied, setCopied] = useState(false);
 
   const linesCount = Math.max(1, code.split('\n').length);
   const lineNumbers = Array.from({ length: linesCount }, (_, i) => i + 1);
@@ -139,13 +135,6 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
     if (lineNumbersRef.current) {
       lineNumbersRef.current.scrollTop = target.scrollTop;
     }
-  };
-
-  const handleCopyCode = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   // Python IDE Smart Auto-Indentation & Keyboard Engine
@@ -346,38 +335,6 @@ export const PythonCodeEditor: React.FC<PythonCodeEditorProps> = ({
         transition: 'border-color 0.25s ease, box-shadow 0.25s ease'
       }}
     >
-      {/* Floating Top-Right Copy Button */}
-      {showCopyButton && (
-        <button
-          onClick={handleCopyCode}
-          type="button"
-          title="Copy Python Code"
-          style={{
-            position: 'absolute',
-            top: '8px',
-            right: '10px',
-            zIndex: 10,
-            background: copied ? 'rgba(52, 211, 153, 0.22)' : 'rgba(20, 20, 26, 0.82)',
-            backdropFilter: 'blur(8px)',
-            border: copied ? '1px solid rgba(52, 211, 153, 0.45)' : '1px solid rgba(255, 255, 255, 0.14)',
-            borderRadius: '6px',
-            padding: '3px 8px',
-            color: copied ? '#34d399' : '#d4a373',
-            fontSize: '0.68rem',
-            fontWeight: 600,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            transition: 'all 0.18s ease',
-            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.4)'
-          }}
-        >
-          {copied ? <Check size={11} color="#34d399" /> : <Copy size={11} />}
-          <span>{copied ? 'Copied' : 'Copy'}</span>
-        </button>
-      )}
-
       {/* Line Numbers Gutter */}
       <div
         ref={lineNumbersRef}

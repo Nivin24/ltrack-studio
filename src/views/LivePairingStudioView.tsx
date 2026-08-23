@@ -88,6 +88,35 @@ const ChatCodeSnippetBox: React.FC<{ code: string }> = ({ code }) => {
   );
 };
 
+function renderMessageWithMentions(text: string) {
+  if (!text) return null;
+  const parts = text.split(/(@[a-zA-Z0-9_\s]+?(?=\s|[.,!?]|$))/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('@')) {
+      return (
+        <span
+          key={i}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            background: 'rgba(212, 163, 115, 0.24)',
+            border: '1px solid rgba(212, 163, 115, 0.5)',
+            color: '#d4a373',
+            borderRadius: '4px',
+            padding: '0 5px',
+            fontWeight: 700,
+            fontSize: '0.74rem',
+            margin: '0 2px'
+          }}
+        >
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
 export const LivePairingStudioView: React.FC = () => {
   const {
     activePairingRoom,
@@ -105,13 +134,61 @@ export const LivePairingStudioView: React.FC = () => {
     isConnected
   } = useRealtime();
 
-  const { currentUser, setActiveTab } = useLTrack();
+  const { currentUser, members, setActiveTab } = useLTrack();
 
   const [chatInput, setChatInput] = useState('');
   const [snippetInput, setSnippetInput] = useState('');
   const [showSnippetBox, setShowSnippetBox] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [copiedStdout, setCopiedStdout] = useState(false);
+
+  // @ Mention State & Autocomplete
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const chatInputRef = useRef<HTMLInputElement>(null);
+
+  const mentionSuggestions = mentionQuery !== null
+    ? members.filter(
+        (m) =>
+          m.id !== currentUser.id &&
+          m.name.toLowerCase().includes(mentionQuery.toLowerCase())
+      )
+    : [];
+
+  const insertMention = (member: (typeof members)[0]) => {
+    const lastAtIdx = chatInput.lastIndexOf('@');
+    const prefix = lastAtIdx !== -1 ? chatInput.slice(0, lastAtIdx) : '';
+    const newText = `${prefix}@${member.name} `;
+    setChatInput(newText);
+    setMentionQuery(null);
+    chatInputRef.current?.focus();
+  };
+
+  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (mentionSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % mentionSuggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev - 1 + mentionSuggestions.length) % mentionSuggestions.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        if (mentionSuggestions[mentionIndex]) {
+          e.preventDefault();
+          insertMention(mentionSuggestions[mentionIndex]);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        setMentionQuery(null);
+        return;
+      }
+    }
+  };
 
   // Real-time active editing person tracker (code editor)
   const [typingUserId, setTypingUserId] = useState<string | null>(currentUser.id);
@@ -384,9 +461,22 @@ export const LivePairingStudioView: React.FC = () => {
     }, 450);
   };
 
-  // Broadcast typing in chat input
+  // Broadcast typing in chat input and detect @mentions
   const handleChatInputChange = (text: string) => {
     setChatInput(text);
+
+    const lastAtIdx = text.lastIndexOf('@');
+    if (lastAtIdx !== -1) {
+      const textAfterAt = text.slice(lastAtIdx + 1);
+      if (!textAfterAt.includes(' ') && textAfterAt.length < 20) {
+        setMentionQuery(textAfterAt);
+        setMentionIndex(0);
+      } else {
+        setMentionQuery(null);
+      }
+    } else {
+      setMentionQuery(null);
+    }
 
     if (text.trim()) {
       try {
@@ -1176,7 +1266,7 @@ export const LivePairingStudioView: React.FC = () => {
                       {/* Text Message Content */}
                       {msg.text && (
                         <p style={{ fontSize: '0.78rem', color: '#eae6e1', lineHeight: 1.35, margin: 0, wordBreak: 'break-word' }}>
-                          {msg.text}
+                          {renderMessageWithMentions(msg.text)}
                         </p>
                       )}
 
@@ -1421,15 +1511,74 @@ export const LivePairingStudioView: React.FC = () => {
                     <Mic size={15} />
                   </button>
 
-                  {/* Text Input with Live Typing Broadcast */}
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Type message or click mic to record voice note..."
-                    value={chatInput}
-                    onChange={(e) => handleChatInputChange(e.target.value)}
-                    style={{ flex: 1, height: '34px', fontSize: '0.82rem' }}
-                  />
+                  {/* Text Input with Mention Autocomplete & Live Typing */}
+                  <div style={{ position: 'relative', flex: 1, display: 'flex' }}>
+                    {/* @ Mention Autocomplete Popup Dropdown */}
+                    {mentionSuggestions.length > 0 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: 'calc(100% + 8px)',
+                          left: 0,
+                          width: '260px',
+                          maxHeight: '200px',
+                          overflowY: 'auto',
+                          background: 'rgba(24, 24, 32, 0.96)',
+                          backdropFilter: 'blur(16px)',
+                          border: '1px solid rgba(212, 163, 115, 0.35)',
+                          borderRadius: '10px',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.65)',
+                          padding: '6px',
+                          zIndex: 100,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px'
+                        }}
+                      >
+                        <div style={{ fontSize: '0.66rem', color: 'var(--text-dim)', padding: '2px 6px', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+                          Mention & Invite Teammate
+                        </div>
+                        {mentionSuggestions.map((m, idx) => (
+                          <div
+                            key={m.id}
+                            onClick={() => insertMention(m)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '6px 8px',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              background: idx === mentionIndex ? 'rgba(212, 163, 115, 0.18)' : 'transparent',
+                              border: idx === mentionIndex ? '1px solid rgba(212, 163, 115, 0.4)' : '1px solid transparent',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            <img src={m.avatar} alt={m.name} style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} />
+                            <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                              <span style={{ fontSize: '0.76rem', color: '#eae6e1', fontWeight: 600 }}>
+                                {m.name}
+                              </span>
+                              <span style={{ fontSize: '0.64rem', color: 'var(--text-dim)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {m.role} • {m.currentPhase.split(':')[0]}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <input
+                      ref={chatInputRef}
+                      type="text"
+                      className="form-control"
+                      placeholder="Type message, @teammate to invite, or mic..."
+                      value={chatInput}
+                      onChange={(e) => handleChatInputChange(e.target.value)}
+                      onKeyDown={handleChatKeyDown}
+                      style={{ width: '100%', height: '34px', fontSize: '0.82rem' }}
+                    />
+                  </div>
 
                   {/* Send Message */}
                   <button type="submit" className="btn btn-primary" style={{ padding: '6px 12px', height: '34px' }}>

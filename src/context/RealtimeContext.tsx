@@ -242,18 +242,30 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       });
 
       if (incomingMsg.senderId !== currentUser.id) {
-        setNotifications((prev) => [
-          {
-            id: `notif_${Date.now()}`,
-            type: 'help_offered',
-            title: `New message from ${incomingMsg.senderName.split(' ')[0]}`,
-            message: incomingMsg.text || (incomingMsg.isVoiceNote ? '🎙️ Sent a voice note' : '💻 Shared a code snippet'),
-            linkTab: 'live_pairing',
-            read: false,
-            timestamp: 'Just now'
-          },
-          ...prev
-        ]);
+        const myNameLower = currentUser.name.toLowerCase();
+        const myFirstNameLower = currentUser.name.split(' ')[0].toLowerCase();
+        const msgTextLower = (incomingMsg.text || '').toLowerCase();
+        const isMentioned = msgTextLower.includes(`@${myNameLower}`) || msgTextLower.includes(`@${myFirstNameLower}`);
+        const isRoomParticipant = activePairingRoom ? (activePairingRoom.hostUser.id === currentUser.id || activePairingRoom.partnerUser.id === currentUser.id) : true;
+
+        if (isMentioned || isRoomParticipant) {
+          setNotifications((prev) => [
+            {
+              id: `notif_${Date.now()}`,
+              type: isMentioned ? 'pairing_invite' : 'help_offered',
+              title: isMentioned
+                ? `🤝 Mentioned & Invited by ${incomingMsg.senderName}`
+                : `New message from ${incomingMsg.senderName.split(' ')[0]}`,
+              message: isMentioned
+                ? `${incomingMsg.senderName} mentioned you in Live Pairing Studio: "${incomingMsg.text}"`
+                : incomingMsg.text || (incomingMsg.isVoiceNote ? '🎙️ Sent a voice note' : '💻 Shared a code snippet'),
+              linkTab: 'live_pairing',
+              read: false,
+              timestamp: 'Just now'
+            },
+            ...prev
+          ]);
+        }
       }
     } else if (payload.type === 'pairing_chat_delete' && payload.data?.id) {
       const targetId = payload.data.id;
