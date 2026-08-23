@@ -17,6 +17,7 @@ import { LivePairingStudioView } from './views/LivePairingStudioView';
 import { SkillMatrixView } from './views/SkillMatrixView';
 import { EvidenceProgressView } from './views/EvidenceProgressView';
 import { ProfileView } from './views/ProfileView';
+import { SettingsView } from './views/SettingsView';
 
 const MainContent: React.FC = () => {
   const { isAuthenticated, activeTab, currentUser } = useLTrack();
@@ -52,6 +53,8 @@ const MainContent: React.FC = () => {
         return <EvidenceProgressView />;
       case 'profile':
         return <ProfileView />;
+      case 'settings':
+        return <SettingsView />;
       default:
         return currentUser.role === 'admin' ? <AdminDashboard /> : <MemberDashboard />;
     }

@@ -10,6 +10,7 @@ import {
   Calendar,
   LogOut,
   Code2,
+  Settings,
   X
 } from 'lucide-react';
 
@@ -19,7 +20,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onCloseMobile }) => {
-  const { activeTab, setActiveTab, currentUser, logout } = useLTrack();
+  const { activeTab, setActiveTab, logout } = useLTrack();
   const { onlinePresence, isConnected, activePairingRoom } = useRealtime();
 
   const [isHovered, setIsHovered] = useState(false);
@@ -303,46 +304,30 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onCloseMob
             )}
           </div>
 
-          {/* User Profile Capsule */}
-          <div
-            onClick={() => handleSelectTab('profile')}
+          {/* Settings & Preferences Action */}
+          <button
+            onClick={() => handleSelectTab('settings')}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: isExpanded ? 'flex-start' : 'center',
               gap: '10px',
-              padding: isExpanded ? '6px 8px' : '4px 0',
-              borderRadius: '14px',
-              background: activeTab === 'profile' ? 'rgba(212, 163, 115, 0.15)' : 'transparent',
-              border: activeTab === 'profile' ? '1px solid rgba(212, 163, 115, 0.3)' : '1px solid transparent',
+              padding: isExpanded ? '8px 10px' : '8px 0',
+              borderRadius: '12px',
+              border: activeTab === 'settings' ? '1px solid rgba(212, 163, 115, 0.35)' : '1px solid transparent',
+              background: activeTab === 'settings' ? 'rgba(212, 163, 115, 0.15)' : 'transparent',
+              color: activeTab === 'settings' ? '#d4a373' : 'var(--text-dim)',
               cursor: 'pointer',
-              transition: 'all 0.18s ease'
+              width: '100%',
+              fontSize: '0.78rem',
+              fontWeight: activeTab === 'settings' ? 700 : 600,
+              transition: 'all 0.15s ease'
             }}
-            title={currentUser.name}
+            title="Settings & Preferences"
           >
-            <img
-              src={currentUser.avatar}
-              alt={currentUser.name}
-              style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                border: '1.5px solid var(--accent-copper)',
-                objectFit: 'cover',
-                flexShrink: 0
-              }}
-            />
-            {isExpanded && (
-              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, overflow: 'hidden' }}>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {currentUser.name}
-                </span>
-                <span style={{ fontSize: '0.66rem', color: 'var(--text-dim)', textTransform: 'capitalize' }}>
-                  {currentUser.role}
-                </span>
-              </div>
-            )}
-          </div>
+            <Settings size={16} style={{ flexShrink: 0 }} />
+            {isExpanded && <span>Settings</span>}
+          </button>
 
           {/* Sign Out Action */}
           <button

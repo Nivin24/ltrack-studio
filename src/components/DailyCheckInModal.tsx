@@ -5,9 +5,10 @@ import { X, CheckCircle, Clock, Star, AlertCircle, BookOpen } from 'lucide-react
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  selectedDate?: string;
 }
 
-export const DailyCheckInModal: React.FC<Props> = ({ isOpen, onClose }) => {
+export const DailyCheckInModal: React.FC<Props> = ({ isOpen, onClose, selectedDate }) => {
   const { addDailyCheckIn } = useLTrack();
 
   const [completedLearning, setCompletedLearning] = useState<'yes' | 'partially' | 'no'>('yes');
@@ -20,15 +21,17 @@ export const DailyCheckInModal: React.FC<Props> = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
+  const targetDate = selectedDate || new Date().toISOString().slice(0, 10);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     addDailyCheckIn({
-      date: new Date().toISOString().slice(0, 10),
+      date: targetDate,
       completedLearning,
       timeSpentMinutes,
       confidenceScore,
       difficulty,
-      whatLearned: whatLearned || 'Learned core FastAPI concepts.',
+      whatLearned: whatLearned || 'Learned core concepts.',
       confusedAbout: confusedAbout || 'None',
       toRevise: toRevise || 'Practice code implementation.'
     });
