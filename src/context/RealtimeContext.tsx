@@ -353,7 +353,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     };
   }, [currentUser.id]);
 
-  // Connect WebRTC DataConnection to the peer in active pairing room
+  // Connect WebRTC DataConnection to the peer in active pairing room with auto-reconnect loop
   useEffect(() => {
     if (!peerInstanceRef.current || !activePairingRoom) return;
 
@@ -361,24 +361,41 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     const peerUser = isHost ? activePairingRoom.partnerUser : activePairingRoom.hostUser;
     const targetPeerId = `ltrack_usr_${peerUser.id.replace(/[^a-zA-Z0-9]/g, '')}`;
 
-    const connectToPeer = () => {
+    const tryConnect = () => {
+      if (dataConnRef.current && dataConnRef.current.open) return;
+      if (!peerInstanceRef.current || peerInstanceRef.current.destroyed) return;
+
       try {
-        const conn = peerInstanceRef.current!.connect(targetPeerId, {
+        const conn = peerInstanceRef.current.connect(targetPeerId, {
           reliable: true
         });
 
         conn.on('open', () => {
           dataConnRef.current = conn;
+          setIsConnected(true);
         });
 
         conn.on('data', (data) => {
           handleRealtimePayload(data);
         });
+
+        conn.on('close', () => {
+          dataConnRef.current = null;
+        });
+
+        conn.on('error', () => {
+          dataConnRef.current = null;
+        });
       } catch {}
     };
 
-    const timer = setTimeout(connectToPeer, 1000);
-    return () => clearTimeout(timer);
+    const initialTimer = setTimeout(tryConnect, 800);
+    const intervalTimer = setInterval(tryConnect, 3000);
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(intervalTimer);
+    };
   }, [currentUser.id, activePairingRoom?.roomId]);
 
   // 3. Fallback WebSocket connection for local dev

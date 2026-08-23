@@ -28,6 +28,7 @@ export function useDiscordVoiceCall({
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const peerRef = useRef<Peer | null>(null);
   const callRef = useRef<MediaConnection | null>(null);
+  const pendingIncomingCallRef = useRef<MediaConnection | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -160,9 +161,10 @@ export function useDiscordVoiceCall({
     } catch {}
   };
 
-  // Initialize Voice PeerJS Cloud Connection
+  // Initialize Voice PeerJS Cloud Connection (Without acquiring microphone)
   useEffect(() => {
-    const voicePeerId = `ltrack_voice_${userId.replace(/[^a-zA-Z0-9]/g, '')}`;
+    const cleanUserId = userId.replace(/[^a-zA-Z0-9]/g, '');
+    const voicePeerId = `ltrack_voice_${cleanUserId}`;
     let peer: Peer | null = null;
 
     try {
@@ -176,24 +178,13 @@ export function useDiscordVoiceCall({
       });
       peerRef.current = peer;
 
-      // Handle incoming live voice call from peer on another laptop
-      peer.on('call', async (incomingCall) => {
-        try {
-          let stream = localStreamRef.current;
-          if (!stream) {
-            stream = await navigator.mediaDevices.getUserMedia({
-              audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-              },
-              video: false
-            });
-            localStreamRef.current = stream;
-            startAudioAnalyzer(stream);
-          }
+      // Handle incoming live voice call signal
+      peer.on('call', (incomingCall) => {
+        pendingIncomingCallRef.current = incomingCall;
 
-          incomingCall.answer(stream);
+        // If callActive is already true (i.e. accepted), answer immediately with mic
+        if (callActive && localStreamRef.current) {
+          incomingCall.answer(localStreamRef.current);
           callRef.current = incomingCall;
 
           incomingCall.on('stream', (remoteStream) => {
@@ -202,9 +193,6 @@ export function useDiscordVoiceCall({
               remoteAudioRef.current.play().catch(() => {});
             }
           });
-
-          setConnectionStatus('connected');
-        } catch {
           setConnectionStatus('connected');
         }
       });
@@ -213,15 +201,15 @@ export function useDiscordVoiceCall({
     return () => {
       if (peer) peer.destroy();
     };
-  }, [userId]);
+  }, [userId, callActive]);
 
-  // Start Real Voice Call via PeerJS WebRTC
+  // Start Real Voice Call - ONLY called AFTER user accepts call (callActive === true)
   const startVoiceCall = async () => {
     setConnectionStatus('connecting');
     playChime('join');
 
     try {
-      // 1. Capture microphone stream
+      // 1. ONLY NOW acquire user microphone
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -233,9 +221,27 @@ export function useDiscordVoiceCall({
       localStreamRef.current = stream;
       startAudioAnalyzer(stream);
 
-      // 2. Call peer on other machine via PeerJS cloud
+      // 2. If there is a pending incoming call that was waiting for acceptance, answer it
+      if (pendingIncomingCallRef.current) {
+        const incomingCall = pendingIncomingCallRef.current;
+        incomingCall.answer(stream);
+        callRef.current = incomingCall;
+
+        incomingCall.on('stream', (remoteStream) => {
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStream;
+            remoteAudioRef.current.play().catch(() => {});
+          }
+        });
+        pendingIncomingCallRef.current = null;
+        setConnectionStatus('connected');
+        return;
+      }
+
+      // 3. Otherwise call peer on other machine via PeerJS cloud
       if (peerRef.current && peerUserId) {
-        const targetVoicePeerId = `ltrack_voice_${peerUserId.replace(/[^a-zA-Z0-9]/g, '')}`;
+        const cleanPeerId = peerUserId.replace(/[^a-zA-Z0-9]/g, '');
+        const targetVoicePeerId = `ltrack_voice_${cleanPeerId}`;
         const outgoingCall = peerRef.current.call(targetVoicePeerId, stream);
         callRef.current = outgoingCall;
 
@@ -251,11 +257,11 @@ export function useDiscordVoiceCall({
 
       setConnectionStatus('connected');
     } catch {
-      setConnectionStatus('connected');
+      setConnectionStatus('idle');
     }
   };
 
-  // Stop Voice Call
+  // Stop Voice Call and Release Microphone Immediately
   const stopVoiceCall = useCallback(() => {
     playChime('leave');
 
@@ -269,8 +275,11 @@ export function useDiscordVoiceCall({
       audioContextRef.current = null;
     }
 
+    // STRICTLY RELEASE MICROPHONE HARDWARE
     if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
+      localStreamRef.current.getTracks().forEach((t) => {
+        t.stop();
+      });
       localStreamRef.current = null;
     }
 
@@ -278,6 +287,7 @@ export function useDiscordVoiceCall({
       callRef.current.close();
       callRef.current = null;
     }
+    pendingIncomingCallRef.current = null;
 
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null;
@@ -289,7 +299,7 @@ export function useDiscordVoiceCall({
     setConnectionStatus('idle');
   }, [playChime]);
 
-  // Sync with callActive prop
+  // Sync with callActive prop - ONLY acquire mic when callActive is true
   useEffect(() => {
     if (callActive && connectionStatus === 'idle') {
       startVoiceCall();
