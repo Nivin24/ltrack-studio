@@ -20,8 +20,8 @@ export function highlightPythonCode(code: string): React.ReactNode[] {
   const lines = code.split('\n');
 
   return lines.map((line, lineIdx) => {
-    // Tokenize line with regex capturing strings, comments, words, numbers, and symbols
-    const tokenRegex = /(#.*$)|("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(\b(?:async|await|def|from|import|try|except|finally|yield|return|if|elif|else|while|for|in|class|with|as|pass|raise|lambda|assert|break|continue)\b)|(\b(?:AsyncGenerator|AsyncSession|Session|dict|list|set|tuple|str|int|float|bool|None|True|False|sum|len|math|range|print|round|next|close|zip|object|re|math|isinstance|match)\b)|(\b\d+(?:\.\d+)?\b)|(\b[a-zA-Z_]\w*(?=\s*\())|([{}()[\]:.,+\-*/=<>!&|]+)|(\s+)|([a-zA-Z_]\w*)/g;
+    // Tokenize line with regex capturing strings (closed & unclosed), comments, words, numbers, and symbols
+    const tokenRegex = /(#.*$)|("""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$))|(\b(?:async|await|def|from|import|try|except|finally|yield|return|if|elif|else|while|for|in|class|with|as|pass|raise|lambda|assert|break|continue)\b)|(\b(?:AsyncGenerator|AsyncSession|Session|dict|list|set|tuple|str|int|float|bool|None|True|False|sum|len|math|range|print|round|next|close|zip|object|re|math|isinstance|match)\b)|(\b\d+(?:\.\d+)?\b)|(\b[a-zA-Z_]\w*(?=\s*\())|([{}()[\]:.,+\-*/=<>!&|^~%@;]+)|(\s+)|([a-zA-Z_]\w*)|(.)/g;
 
     const elements: React.ReactNode[] = [];
     let match: RegExpExecArray | null;
@@ -38,7 +38,8 @@ export function highlightPythonCode(code: string): React.ReactNode[] {
         funcCall,
         symbol,
         whitespace,
-        ident
+        ident,
+        otherChar
       ] = match;
 
       const key = `${lineIdx}_${keyIdx++}`;
@@ -91,6 +92,12 @@ export function highlightPythonCode(code: string): React.ReactNode[] {
         elements.push(
           <span key={key} style={{ color: '#e6edf3' }}>
             {ident}
+          </span>
+        );
+      } else if (otherChar) {
+        elements.push(
+          <span key={key} style={{ color: '#eae6e1' }}>
+            {otherChar}
           </span>
         );
       } else {
