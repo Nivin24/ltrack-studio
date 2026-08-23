@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import Peer, { type DataConnection } from 'peerjs';
 import { useLTrack } from './LTrackContext';
+import { WS_BASE_URL } from '../config/api';
 import {
   type PresenceStatus,
   type OnlineMemberPresence,
@@ -398,14 +399,12 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     };
   }, [currentUser.id, activePairingRoom?.roomId]);
 
-  // 3. Fallback WebSocket connection for local dev
+  // 3. WebSocket connection to FastAPI backend (local or production Render)
   useEffect(() => {
-    if (window.location.protocol === 'https:') return;
-
-    const wsUrl = `ws://${window.location.hostname}:8080/api/v1/ws/${currentUser.id}`;
     let socket: WebSocket | null = null;
 
     try {
+      const wsUrl = `${WS_BASE_URL}/${currentUser.id}`;
       socket = new WebSocket(wsUrl);
       wsRef.current = socket;
 
