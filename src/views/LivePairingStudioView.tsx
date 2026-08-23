@@ -103,6 +103,91 @@ export const LivePairingStudioView: React.FC = () => {
     onCallToggle: toggleCall
   });
 
+  // Adjustable 3-Container Resizable Layout State
+  const [leftWidthPercent, setLeftWidthPercent] = useState<number>(() => {
+    const saved = localStorage.getItem('ltrack_studio_left_width');
+    return saved ? Number(saved) : 58;
+  });
+  const [notesHeight, setNotesHeight] = useState<number>(() => {
+    const saved = localStorage.getItem('ltrack_studio_notes_height');
+    return saved ? Number(saved) : 110;
+  });
+  const [isDraggingHorizontal, setIsDraggingHorizontal] = useState(false);
+  const [isDraggingVertical, setIsDraggingVertical] = useState(false);
+
+  const studioGridRef = useRef<HTMLDivElement>(null);
+  const leftColumnRef = useRef<HTMLDivElement>(null);
+
+  // Handle Horizontal (Left/Right) dragging
+  useEffect(() => {
+    if (!isDraggingHorizontal) return;
+
+    const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+      if (!studioGridRef.current) return;
+      const rect = studioGridRef.current.getBoundingClientRect();
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const newPercent = Math.min(80, Math.max(25, ((clientX - rect.left) / rect.width) * 100));
+      setLeftWidthPercent(newPercent);
+      localStorage.setItem('ltrack_studio_left_width', String(Math.round(newPercent)));
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingHorizontal(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isDraggingHorizontal]);
+
+  // Handle Vertical (Scratchpad / Notes) dragging
+  useEffect(() => {
+    if (!isDraggingVertical) return;
+
+    const handleMouseMove = (e: MouseEvent | TouchEvent) => {
+      if (!leftColumnRef.current) return;
+      const rect = leftColumnRef.current.getBoundingClientRect();
+      const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const newHeight = Math.min(360, Math.max(55, rect.bottom - clientY));
+      setNotesHeight(newHeight);
+      localStorage.setItem('ltrack_studio_notes_height', String(Math.round(newHeight)));
+    };
+
+    const handleMouseUp = () => {
+      setIsDraggingVertical(false);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchmove', handleMouseMove);
+    window.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchmove', handleMouseMove);
+      window.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [isDraggingVertical]);
+
+  const handleHorizontalMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsDraggingHorizontal(true);
+  };
+
+  const handleVerticalMouseDown = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    setIsDraggingVertical(true);
+  };
+
   // Listen to remote typing and code execution events over BroadcastChannel
   useEffect(() => {
     try {
@@ -666,12 +751,35 @@ export const LivePairingStudioView: React.FC = () => {
         </div>
       )}
 
-      {/* 2. Main Two-Column Studio Layout */}
-      <div className="responsive-split-grid" style={{ alignItems: 'stretch' }}>
-        {/* Left Column: Shared Python Code Scratchpad + Live Co-op Terminal Output */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%', minHeight: 0 }}>
-          {/* Shared Code Scratchpad with Live Run Engine & Collaborator Pills */}
-          <div className="glass-panel" style={{ flex: 1, background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+      {/* 2. Main Studio Three-Container Draggable Resizable Layout */}
+      <div
+        ref={studioGridRef}
+        className="draggable-studio-container"
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'stretch',
+          width: '100%',
+          flex: 1,
+          minHeight: 0,
+          userSelect: isDraggingHorizontal || isDraggingVertical ? 'none' : 'auto'
+        }}
+      >
+        {/* Left Column (Container 1: Scratchpad + Container 2: Notes) */}
+        <div
+          ref={leftColumnRef}
+          className="studio-left-column"
+          style={{
+            width: `calc(${leftWidthPercent}% - 6px)`,
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            minHeight: 0,
+            minWidth: '280px'
+          }}
+        >
+          {/* Container 1: Shared Python Code Scratchpad with Live Run Engine & Collaborator Pills */}
+          <div className="glass-panel" style={{ flex: 1, background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: '160px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', background: 'rgba(0, 0, 0, 0.3)', flexShrink: 0, gap: '8px', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Code2 size={15} color={isPeerEditing ? '#34d399' : '#d4a373'} />
@@ -792,8 +900,41 @@ export const LivePairingStudioView: React.FC = () => {
             )}
           </div>
 
-          {/* Shared Session Notes */}
-          <div className="glass-panel" style={{ height: '90px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '12px', padding: '8px 12px', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          {/* Vertical Splitter Handle (Between Container 1: Scratchpad and Container 2: Notes) */}
+          <div
+            onMouseDown={handleVerticalMouseDown}
+            onTouchStart={handleVerticalMouseDown}
+            onDoubleClick={() => {
+              setNotesHeight(110);
+              localStorage.setItem('ltrack_studio_notes_height', '110');
+            }}
+            title="Drag to resize Scratchpad vs Notes (Double-click to reset)"
+            style={{
+              height: '10px',
+              margin: '2px 0',
+              cursor: 'row-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              position: 'relative',
+              zIndex: 10,
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <div
+              style={{
+                width: '46px',
+                height: '4px',
+                borderRadius: '3px',
+                background: isDraggingVertical ? '#d4a373' : 'rgba(255, 255, 255, 0.18)',
+                boxShadow: isDraggingVertical ? '0 0 10px rgba(212, 163, 115, 0.6)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            />
+          </div>
+
+          {/* Container 2: Shared Session Notes */}
+          <div className="glass-panel" style={{ height: `${notesHeight}px`, background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '12px', padding: '8px 12px', display: 'flex', flexDirection: 'column', flexShrink: 0, minHeight: '55px', maxHeight: '360px', overflow: 'hidden' }}>
             <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: '2px' }}>
               Shared Takeaways & Mentorship Notes (Real-time Synced)
             </span>
@@ -816,8 +957,41 @@ export const LivePairingStudioView: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Live Chat, Code Snippets & WhatsApp Audio Sharing */}
-        <div className="glass-panel" style={{ background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', minHeight: 0 }}>
+        {/* Horizontal Splitter Handle (Between Left Column and Container 3: Live Chat) */}
+        <div
+          onMouseDown={handleHorizontalMouseDown}
+          onTouchStart={handleHorizontalMouseDown}
+          onDoubleClick={() => {
+            setLeftWidthPercent(58);
+            localStorage.setItem('ltrack_studio_left_width', '58');
+          }}
+          title="Drag to resize Code vs Chat (Double-click to reset)"
+          style={{
+            width: '12px',
+            margin: '0 2px',
+            cursor: 'col-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative',
+            zIndex: 10,
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <div
+            style={{
+              width: '4px',
+              height: '46px',
+              borderRadius: '3px',
+              background: isDraggingHorizontal ? '#d4a373' : 'rgba(255, 255, 255, 0.18)',
+              boxShadow: isDraggingHorizontal ? '0 0 10px rgba(212, 163, 115, 0.6)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          />
+        </div>
+
+        {/* Container 3: Right Column (Pairing Chat & WhatsApp Audio Sharing) */}
+        <div className="glass-panel studio-right-column" style={{ width: `calc(${100 - leftWidthPercent}% - 6px)`, background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', height: '100%', minHeight: 0, minWidth: '260px' }}>
           {/* Chat Header */}
           <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', background: 'rgba(0, 0, 0, 0.3)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
             <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#eae6e1' }}>

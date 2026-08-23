@@ -296,11 +296,30 @@ select.form-control option {
   min-height: 0;
 }
 
+.draggable-studio-container {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
 @media (max-width: 960px) {
   .responsive-split-grid {
     grid-template-columns: 1fr;
     height: auto;
     overflow-y: visible;
+  }
+  .draggable-studio-container {
+    flex-direction: column !important;
+    height: auto !important;
+    gap: 12px;
+  }
+  .studio-left-column,
+  .studio-right-column {
+    width: 100% !important;
+    min-width: 100% !important;
   }
 }
 
