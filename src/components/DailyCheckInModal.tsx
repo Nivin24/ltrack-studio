@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLTrack } from '../context/LTrackContext';
 import { X, CheckCircle, Clock, Star, AlertCircle, BookOpen } from 'lucide-react';
+import { getISTDateString } from '../utils/dateUtils';
 
 interface Props {
   isOpen: boolean;
@@ -21,7 +22,7 @@ export const DailyCheckInModal: React.FC<Props> = ({ isOpen, onClose, selectedDa
 
   if (!isOpen) return null;
 
-  const targetDate = selectedDate || new Date().toISOString().slice(0, 10);
+  const targetDate = selectedDate || getISTDateString(new Date());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

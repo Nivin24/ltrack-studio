@@ -18,6 +18,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
+import { getISTDateString, getISTFullDateString } from '../utils/dateUtils';
 
 interface CustomDayTask {
   id: string;
@@ -38,7 +39,7 @@ export const DailyLearningView: React.FC = () => {
 
   const [showCheckInModal, setShowCheckInModal] = useState(false);
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => {
-    return new Date().toISOString().slice(0, 10);
+    return getISTDateString(new Date());
   });
 
   // Calendar Navigation State
@@ -193,7 +194,7 @@ export const DailyLearningView: React.FC = () => {
     });
   };
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getISTDateString(new Date());
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -421,12 +422,7 @@ export const DailyLearningView: React.FC = () => {
                 Day {selectedDayData.dayOfMonth} Schedule & Tasks
               </span>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#eae6e1', margin: '2px 0 0 0' }}>
-                {new Date(selectedDateStr + 'T00:00:00').toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
+                {getISTFullDateString(new Date(selectedDateStr + 'T00:00:00'))}
               </h3>
             </div>
 

@@ -9,8 +9,10 @@ import {
   Bell,
   ArrowRight,
   BookOpen,
-  Menu
+  Menu,
+  Clock
 } from 'lucide-react';
+import { getISTTimeString } from '../utils/dateUtils';
 
 interface HeaderBarProps {
   onToggleMobileSidebar?: () => void;
@@ -23,6 +25,15 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onToggleMobileSidebar }) =
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
+  const [istTime, setIstTime] = useState<string>(() => getISTTimeString(new Date(), true));
+
+  // Ticking Indian Standard Time (IST / Mumbai) clock
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIstTime(getISTTimeString(new Date(), true));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debouncedQuery = useDebounce(searchQuery, 200);
@@ -208,8 +219,32 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onToggleMobileSidebar }) =
           })}
         </nav>
 
-        {/* 3. Right: Spotlight Capsule, Bell & Profile Avatar */}
+        {/* 3. Right: Live IST Clock, Spotlight Capsule, Bell & Profile Avatar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* Live Indian Standard Time (IST / Mumbai) Capsule */}
+          <div
+            className="hide-on-mobile"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1px solid rgba(212, 163, 115, 0.22)',
+              borderRadius: '18px',
+              padding: '5px 11px',
+              color: '#eae6e1',
+              fontSize: '0.74rem',
+              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+              fontWeight: 600,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)'
+            }}
+            title="Indian Standard Time (IST / Mumbai, UTC+5:30)"
+          >
+            <Clock size={13} color="#d4a373" />
+            <span style={{ color: '#d4a373', letterSpacing: '0.02em' }}>{istTime}</span>
+            <span style={{ fontSize: '0.62rem', color: 'var(--text-dim)', fontWeight: 700 }}>IST</span>
+          </div>
+
           {/* Spotlight Search Capsule */}
           <button
             onClick={() => setShowSearchModal(true)}

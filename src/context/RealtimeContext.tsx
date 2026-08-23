@@ -9,6 +9,7 @@ import {
   type PairingRoomState,
   type PairingChatMessage
 } from '../types/realtime';
+import { getISTTimeString } from '../utils/dateUtils';
 
 export interface IncomingCallInfo {
   callerId: string;
@@ -536,7 +537,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
       audioUrl,
       audioDurationSeconds,
       isVoiceNote,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      timestamp: getISTTimeString(new Date())
     };
 
     setPairingMessages((prev) => {

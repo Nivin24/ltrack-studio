@@ -17,6 +17,7 @@ import {
   Send,
   Sparkles
 } from 'lucide-react';
+import { getISTFullDateString } from '../utils/dateUtils';
 
 export const MemberDashboard: React.FC = () => {
   const { currentUser, topics, setActiveTab, calculateEvidence } = useLTrack();
@@ -81,12 +82,15 @@ export const MemberDashboard: React.FC = () => {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '24px', position: 'relative', zIndex: 2 }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.75rem', fontWeight: 700, padding: '3px 10px', borderRadius: '20px', background: 'rgba(212, 163, 115, 0.15)', color: '#d4a373', border: '1px solid rgba(212, 163, 115, 0.3)', letterSpacing: '0.04em' }}>
                 PHASE {activeTopic.phaseNumber} FOCUS
               </span>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                 {activeTopic.category} Track
+              </span>
+              <span style={{ fontSize: '0.75rem', color: '#849c86', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(132, 156, 134, 0.12)', padding: '2px 8px', borderRadius: '12px' }}>
+                <Clock size={12} /> {getISTFullDateString(new Date())} • IST (Mumbai)
               </span>
             </div>
 
