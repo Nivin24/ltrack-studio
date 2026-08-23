@@ -1,14 +1,11 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLTrack } from '../context/LTrackContext';
 import { useRealtime } from '../context/RealtimeContext';
-import { useDebounce } from '../hooks/useDebounce';
 import { NotificationDrawer } from './NotificationDrawer';
+import { SpotlightSearchModal } from './SpotlightSearchModal';
 import {
   Search,
-  FileCode,
   Bell,
-  ArrowRight,
-  BookOpen,
   Menu,
   Clock
 } from 'lucide-react';
@@ -19,10 +16,9 @@ interface HeaderBarProps {
 }
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({ onToggleMobileSidebar }) => {
-  const { currentUser, activeTab, setActiveTab, topics, assignments, members } = useLTrack();
+  const { currentUser, activeTab, setActiveTab } = useLTrack();
   const { unreadCount } = useRealtime();
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   const [istTime, setIstTime] = useState<string>(() => getISTTimeString(new Date(), true));
@@ -34,9 +30,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onToggleMobileSidebar }) =
     }, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const debouncedQuery = useDebounce(searchQuery, 200);
 
   // Global Keyboard Shortcut: Cmd+K (macOS) or Ctrl+K (Windows/Linux) to open Spotlight
   useEffect(() => {
@@ -51,41 +44,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onToggleMobileSidebar }) =
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-
-  // Focus input automatically when search modal opens
-  useEffect(() => {
-    if (showSearchModal) {
-      setTimeout(() => searchInputRef.current?.focus(), 60);
-    } else {
-      setSearchQuery('');
-    }
-  }, [showSearchModal]);
-
-  // Filtered search results
-  const matchedTopics = debouncedQuery.trim()
-    ? topics.filter((t) =>
-        t.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-        t.category.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-        t.subtopics.some((s) => s.name.toLowerCase().includes(debouncedQuery.toLowerCase()))
-      ).slice(0, 4)
-    : [];
-
-  const matchedAssignments = debouncedQuery.trim()
-    ? assignments.filter((a) =>
-        a.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-        a.description.toLowerCase().includes(debouncedQuery.toLowerCase())
-      ).slice(0, 3)
-    : [];
-
-  const matchedMembers = debouncedQuery.trim()
-    ? members.filter((m) =>
-        m.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-        m.github.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-        m.email.toLowerCase().includes(debouncedQuery.toLowerCase())
-      ).slice(0, 3)
-    : [];
-
-  const totalMatches = [...matchedTopics, ...matchedAssignments, ...matchedMembers];
 
   // Primary Top Navigation Tabs
   const memberNavTabs = [
@@ -341,143 +299,11 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({ onToggleMobileSidebar }) =
         </div>
       </header>
 
-      {/* Global Spotlight Search Modal Dialog */}
-      {showSearchModal && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowSearchModal(false)}
-          style={{ zIndex: 2000 }}
-        >
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '580px', padding: 0, overflow: 'hidden' }}
-          >
-            {/* Input Row */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '16px 20px',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              background: 'rgba(255, 255, 255, 0.03)'
-            }}>
-              <Search size={18} color="#d4a373" />
-              <input
-                ref={searchInputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search topics, assignments, peer mentors, or code..."
-                style={{
-                  flex: 1,
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#f5f5f7',
-                  fontSize: '0.95rem',
-                  fontFamily: 'inherit'
-                }}
-              />
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', padding: '2px 6px', borderRadius: '4px', background: 'rgba(255, 255, 255, 0.06)' }}>
-                ESC to close
-              </span>
-            </div>
-
-            {/* Results Feed */}
-            <div style={{ maxHeight: '380px', overflowY: 'auto', padding: '12px 16px' }}>
-              {debouncedQuery.trim() === '' ? (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dim)' }}>
-                  <p style={{ fontSize: '0.85rem' }}>Type to search anything in LTrack</p>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-                    {['FastAPI', 'Docker', 'Async Python', 'Binary Search', 'Rahul'].map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => setSearchQuery(s)}
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.05)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          borderRadius: '12px',
-                          padding: '4px 10px',
-                          color: '#d4a373',
-                          fontSize: '0.75rem',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : totalMatches.length === 0 ? (
-                <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-dim)' }}>
-                  <p style={{ fontSize: '0.88rem' }}>No results found for "{debouncedQuery}"</p>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {matchedTopics.map((topic) => (
-                    <div
-                      key={topic.id}
-                      onClick={() => {
-                        setActiveTab('roadmap');
-                        setShowSearchModal(false);
-                      }}
-                      style={{
-                        padding: '10px 14px',
-                        borderRadius: '12px',
-                        background: 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid rgba(255, 255, 255, 0.06)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <BookOpen size={16} color="#d4a373" />
-                        <div>
-                          <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#eae6e1' }}>{topic.name}</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginLeft: '8px' }}>{topic.category}</span>
-                        </div>
-                      </div>
-                      <ArrowRight size={14} color="var(--text-dim)" />
-                    </div>
-                  ))}
-
-                  {matchedAssignments.map((a) => (
-                    <div
-                      key={a.id}
-                      onClick={() => {
-                        setActiveTab('assignments');
-                        setShowSearchModal(false);
-                      }}
-                      style={{
-                        padding: '10px 14px',
-                        borderRadius: '12px',
-                        background: 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid rgba(255, 255, 255, 0.06)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <FileCode size={16} color="#34d399" />
-                        <div>
-                          <span style={{ fontSize: '0.84rem', fontWeight: 600, color: '#eae6e1' }}>{a.title}</span>
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', marginLeft: '8px' }}>{a.difficulty} • Deadline {a.deadline}</span>
-                        </div>
-                      </div>
-                      <ArrowRight size={14} color="var(--text-dim)" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Apple Spotlight Search Modal Dialog */}
+      <SpotlightSearchModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+      />
 
       {/* Notification Drawer */}
       <NotificationDrawer
