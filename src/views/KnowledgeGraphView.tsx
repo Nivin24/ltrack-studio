@@ -93,6 +93,7 @@ export const KnowledgeGraphView: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>('py_basics');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
+  const isHoveringInspectorRef = useRef(false);
 
   // Movable Node Positions state (persisted or defaults)
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>(() => {
@@ -120,13 +121,17 @@ export const KnowledgeGraphView: React.FC = () => {
   const [startPan, setStartPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const graphContainerRef = useRef<HTMLDivElement>(null);
 
-  // Smooth Wheel Zoom anchored to cursor position
+  // Smooth Wheel Zoom anchored to cursor position (strictly decoupled from inspector drawer)
   useEffect(() => {
     const container = graphContainerRef.current;
     if (!container) return;
 
     const handleWheel = (e: WheelEvent) => {
-      // If the wheel event occurs over the inspector drawer or control overlays, scroll the window normally and prevent graph zooming
+      // If the cursor is currently over the inspector drawer or control overlays, NEVER zoom or pan the graph
+      if (isHoveringInspectorRef.current) {
+        return;
+      }
+
       const target = e.target as HTMLElement | null;
       if (target && target.closest('.inspector-drawer, #inspector-drawer')) {
         return;
@@ -1201,11 +1206,19 @@ export const KnowledgeGraphView: React.FC = () => {
               </div>
             )}
 
+            </div>
+
             {/* Slide-out Floating Deep-Dive Node Inspector Drawer */}
             {isInspectorOpen && selectedNode && (
               <div
                 id="inspector-drawer"
                 className="glass-panel inspector-drawer"
+                onMouseEnter={() => {
+                  isHoveringInspectorRef.current = true;
+                }}
+                onMouseLeave={() => {
+                  isHoveringInspectorRef.current = false;
+                }}
                 onWheel={(e) => {
                   e.stopPropagation();
                 }}
@@ -1220,9 +1233,9 @@ export const KnowledgeGraphView: React.FC = () => {
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  background: 'rgba(18, 18, 26, 0.97)',
+                  background: 'rgba(18, 18, 26, 0.98)',
                   border: '1px solid rgba(255, 255, 255, 0.12)',
-                  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.85)',
+                  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.9)',
                   backdropFilter: 'blur(24px)',
                   overflowY: 'auto',
                   overscrollBehavior: 'contain',
@@ -1457,7 +1470,6 @@ export const KnowledgeGraphView: React.FC = () => {
                 </div>
               </div>
             )}
-          </div>
         </div>
       </div>
     </div>
