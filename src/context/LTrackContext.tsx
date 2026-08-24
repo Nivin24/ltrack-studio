@@ -530,6 +530,12 @@ export const LTrackProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         assignmentScorePct: 0,
         checkInConfidencePct: 0,
         verifiedMasteryPct: 0,
+        subtopicsPoints: 0,
+        prPoints: 0,
+        confidencePoints: 0,
+        statusPoints: 0,
+        nextActionRecommendation: 'Select a topic to start learning',
+        credentialEligible: false,
         evidenceItems: []
       };
     }
@@ -552,17 +558,35 @@ export const LTrackProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         )
       : 70;
 
-    const verifiedMasteryPct = Math.round(
-      0.35 * conceptCompletionPct +
-        0.35 * assignmentScorePct +
-        0.15 * checkInConfidencePct +
-        0.15 * (topic.status === 'completed' ? 100 : topic.status === 'learning' ? 50 : 0)
-    );
+    const subtopicsPoints = Math.round(0.35 * conceptCompletionPct);
+    const prPoints = Math.round(0.35 * assignmentScorePct);
+    const confidencePoints = Math.round(0.15 * checkInConfidencePct);
+    const statusVal = topic.status === 'completed' ? 100 : topic.status === 'learning' ? 50 : 0;
+    const statusPoints = Math.round(0.15 * statusVal);
+
+    const verifiedMasteryPct = Math.min(100, subtopicsPoints + prPoints + confidencePoints + statusPoints);
 
     const evidenceItems: string[] = [];
-    if (completedSubtopics > 0) evidenceItems.push(`${completedSubtopics}/${totalSubtopics} Subtopics completed`);
-    if (topicSubmission?.evaluation) evidenceItems.push(`PR #${topicSubmission.githubPr.split('/').pop()} Graded ${topicSubmission.evaluation.overallScore}/10`);
-    if (userCheckIns.length > 0) evidenceItems.push(`${userCheckIns.length} Check-ins recorded`);
+    if (completedSubtopics > 0) evidenceItems.push(`${completedSubtopics}/${totalSubtopics} Syllabus Subtopics Completed (+${subtopicsPoints} pts)`);
+    if (topicSubmission?.evaluation) {
+      evidenceItems.push(`PR #${topicSubmission.githubPr.split('/').pop()} Graded ${topicSubmission.evaluation.overallScore}/10 (+${prPoints} pts)`);
+    }
+    if (userCheckIns.length > 0) {
+      evidenceItems.push(`${userCheckIns.length} Consistency Check-Ins Logged (+${confidencePoints} pts)`);
+    }
+    evidenceItems.push(`Phase Status: ${topic.status.toUpperCase()} (+${statusPoints} pts)`);
+
+    // Next Action Recommendation
+    let nextActionRecommendation = 'Complete all checklist subtopics to boost score.';
+    if (completedSubtopics < totalSubtopics) {
+      nextActionRecommendation = `Finish ${totalSubtopics - completedSubtopics} remaining subtopic${totalSubtopics - completedSubtopics > 1 ? 's' : ''} to add +${Math.round(0.35 * ((totalSubtopics - completedSubtopics) / totalSubtopics) * 100)}% verified proof.`;
+    } else if (!topicSubmission) {
+      nextActionRecommendation = `Submit your GitHub Pull Request for Phase ${topic.phaseNumber} assignment to unlock +35% verified proof.`;
+    } else if (topicSubmission.status !== 'evaluated') {
+      nextActionRecommendation = 'Your PR is in review by peer mentors. Approval will lock in +35% proof.';
+    } else if (verifiedMasteryPct >= 80) {
+      nextActionRecommendation = 'Verified Mastery Achieved! Skill Credential unlocked and verified.';
+    }
 
     return {
       topicId: topic.id,
@@ -571,6 +595,12 @@ export const LTrackProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       assignmentScorePct,
       checkInConfidencePct,
       verifiedMasteryPct,
+      subtopicsPoints,
+      prPoints,
+      confidencePoints,
+      statusPoints,
+      nextActionRecommendation,
+      credentialEligible: verifiedMasteryPct >= 80,
       evidenceItems
     };
   };

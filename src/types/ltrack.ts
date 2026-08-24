@@ -121,6 +121,12 @@ export interface EvidenceScore {
   assignmentScorePct: number;
   checkInConfidencePct: number;
   verifiedMasteryPct: number;
+  subtopicsPoints: number;
+  prPoints: number;
+  confidencePoints: number;
+  statusPoints: number;
+  nextActionRecommendation: string;
+  credentialEligible: boolean;
   evidenceItems: string[];
 }
 
