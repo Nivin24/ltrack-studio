@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { initialKnowledgeNodes, initialKnowledgeEdges, domainClusters } from '../data/knowledgeGraphData';
 import type { DomainType, NodeStatus } from '../types/knowledgeGraph';
 import { useLTrack } from '../context/LTrackContext';
+import { FormattedText } from '../components/FormattedText';
 import {
   Network,
   Sparkles,
@@ -1320,7 +1321,7 @@ export const KnowledgeGraphView: React.FC = () => {
                       {selectedNode.title}
                     </h2>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>
-                      {selectedNode.description}
+                      <FormattedText text={selectedNode.description} />
                     </p>
                   </div>
 
@@ -1402,7 +1403,7 @@ export const KnowledgeGraphView: React.FC = () => {
                           }}
                         >
                           <CheckCircle2 size={12} color={getNodeStatus(selectedNode.id) === 'mastered' ? '#34d399' : 'rgba(255, 255, 255, 0.2)'} />
-                          <span>{sub}</span>
+                          <span><FormattedText text={sub} /></span>
                         </div>
                       ))}
                     </div>

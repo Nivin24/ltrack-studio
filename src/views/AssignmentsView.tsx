@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useLTrack } from '../context/LTrackContext';
 import { useDebounce } from '../hooks/useDebounce';
+import { FormattedText } from '../components/FormattedText';
 import type { Assignment, Submission } from '../types/ltrack';
 import { SubmitAssignmentModal, GradeAssignmentModal } from '../components/AssignmentModal';
 import {
@@ -259,7 +260,7 @@ export const AssignmentsView: React.FC = () => {
                   </h3>
 
                   <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', lineHeight: 1.5, marginBottom: '12px' }}>
-                    {asgn.description}
+                    <FormattedText text={asgn.description} />
                   </p>
 
                   {mySubmission && (

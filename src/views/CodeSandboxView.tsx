@@ -3,6 +3,7 @@ import { initialChallenges, initialQuizzes } from '../data/sandboxData';
 import type { CodingChallenge, QuizQuestion } from '../types/sandbox';
 import { useLTrack } from '../context/LTrackContext';
 import { PythonCodeEditor } from '../components/PythonCodeEditor';
+import { FormattedText } from '../components/FormattedText';
 import {
   Code2,
   Play,
@@ -422,9 +423,9 @@ asyncio.run(main())`;
                 </span>
               </div>
 
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '14px' }}>
-                {selectedChallenge.description}
-              </p>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '14px' }}>
+                <FormattedText text={selectedChallenge.description} />
+              </div>
 
               {/* Hints Box */}
               <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px' }}>
@@ -440,7 +441,7 @@ asyncio.run(main())`;
                     {selectedChallenge.hints.map((h, i) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Sparkles size={13} color="#d4a373" />
-                        <span>{h}</span>
+                        <span><FormattedText text={h} /></span>
                       </div>
                     ))}
                   </div>
@@ -610,7 +611,7 @@ asyncio.run(main())`;
           </div>
 
           <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#eae6e1', marginBottom: '14px', lineHeight: 1.4 }}>
-            {currentQuiz.question}
+            <FormattedText text={currentQuiz.question} />
           </h3>
 
           {/* Optional Code Snippet with Copy Button */}
@@ -699,7 +700,7 @@ asyncio.run(main())`;
                   <span style={{ width: '24px', height: '24px', borderRadius: '50%', background: '#161616', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}>
                     {opt.id.split('_')[1].toUpperCase()}
                   </span>
-                  <span>{opt.text}</span>
+                  <span><FormattedText text={opt.text} /></span>
                 </div>
               );
             })}
@@ -711,7 +712,7 @@ asyncio.run(main())`;
               <Sparkles size={16} color="#d4a373" style={{ flexShrink: 0, marginTop: '2px' }} />
               <div>
                 <strong style={{ color: '#d4a373', display: 'block', marginBottom: '4px' }}>Concept Explanation:</strong>
-                {currentQuiz.explanation}
+                <FormattedText text={currentQuiz.explanation} />
               </div>
             </div>
           )}
