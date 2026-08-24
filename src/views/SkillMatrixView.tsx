@@ -2,42 +2,43 @@ import React, { useState, useMemo } from 'react';
 import { useLTrack } from '../context/LTrackContext';
 import { useRealtime } from '../context/RealtimeContext';
 import {
-  Grid,
   Users,
   Search,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   Sparkles,
-  ArrowRight,
   Handshake,
-  Check,
   BarChart3,
-  Clock,
-  Layers
+  Layers,
+  HeartHandshake,
+  UserCheck,
+  GraduationCap,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import type { User } from '../types/ltrack';
+import type { User, Topic } from '../types/ltrack';
 
 type ProficiencyLevel = 'mastered' | 'proficient' | 'learning' | 'needs_help' | 'not_started';
 
-interface SubtopicMastery {
-  subtopicId: string;
-  subtopicName: string;
+interface MiniSubtopic {
+  id: string;
+  name: string;
   topicId: string;
   topicName: string;
   phaseNumber: number;
   category: string;
-  memberProficiencies: Record<string, ProficiencyLevel>;
+  mentors: User[];
+  learners: User[];
+  seekers: User[];
   teamMasteryPct: number;
 }
 
-interface PairingRecommendation {
+interface MentorMatch {
   id: string;
+  mentor: User;
   subtopicName: string;
   topicName: string;
   category: string;
-  strugglingUser: User;
-  mentorUser: User;
   reason: string;
 }
 
@@ -54,23 +55,31 @@ export const SkillMatrixView: React.FC = () => {
 
   const { startPairingSession } = useRealtime();
 
-  // Active View Mode: 'subtopics' (Granular) vs 'domains' (High Level)
-  const [viewMode, setViewMode] = useState<'subtopics' | 'domains'>('subtopics');
+  // Active View Tab: 'visual_directory' (Cards with pictures) | 'friend_exchange' (1-on-1 comparison) | '15_phase_matrix'
+  const [activeTab, setActiveTabLocal] = useState<'visual_directory' | 'friend_exchange' | '15_phase_matrix'>('visual_directory');
 
-  // Filters
-  const [selectedPhase, setSelectedPhase] = useState<number | 'all'>('all');
+  // Selected Category / Domain Filter
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'needs_help' | 'mastered'>('all');
+  const [mentorFilter, setMentorFilter] = useState<'all' | 'can_teach' | 'need_help'>('all');
 
-  // Selected subtopic for detailed mentor inspection modal
-  const [inspectedSubtopic, setInspectedSubtopic] = useState<{
-    subtopic: SubtopicMastery;
-    targetUser?: User;
-  } | null>(null);
+  // Accordion open/close state for domain cards
+  const [expandedDomains, setExpandedDomains] = useState<Record<string, boolean>>({
+    Python: true,
+    FastAPI: true,
+    Docker: true,
+    RAG: true
+  });
+
+  // Selected Friend for 1-on-1 Knowledge Exchange
+  const [selectedFriendId, setSelectedFriendId] = useState<string>(() => {
+    const friend = members.find((m) => m.id !== currentUser.id);
+    return friend ? friend.id : members[0]?.id || '';
+  });
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Custom User-Declared Overrides (stored in localStorage so peers can mark "I can teach" or "I need help")
+  // Custom User-Declared Overrides (stored in localStorage)
   const [customProficiencies, setCustomProficiencies] = useState<Record<string, ProficiencyLevel>>(() => {
     try {
       const saved = localStorage.getItem('ltrack_custom_subtopic_mastery');
@@ -80,6 +89,10 @@ export const SkillMatrixView: React.FC = () => {
     }
   });
 
+  const toggleDomainExpand = (cat: string) => {
+    setExpandedDomains((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
   const updateSubtopicStatus = (userId: string, subtopicId: string, level: ProficiencyLevel) => {
     const key = `${userId}_${subtopicId}`;
     const updated = { ...customProficiencies, [key]: level };
@@ -88,65 +101,85 @@ export const SkillMatrixView: React.FC = () => {
       localStorage.setItem('ltrack_custom_subtopic_mastery', JSON.stringify(updated));
     } catch {}
 
-    setToastMessage(`✓ Updated status to "${level.replace('_', ' ').toUpperCase()}"`);
+    const label = level === 'mastered' ? 'I can explain this 🙋‍♂️' : level === 'needs_help' ? 'Need an explanation 🆘' : level;
+    setToastMessage(`✓ Marked as "${label}"`);
     setTimeout(() => setToastMessage(null), 2500);
   };
 
-  // Compute Subtopic Mastery for all members across all curriculum topics
-  const subtopicMasteries: SubtopicMastery[] = useMemo(() => {
-    const list: SubtopicMastery[] = [];
+  // Domain Course Images Mapping
+  const domainCovers: Record<string, string> = {
+    Python: '/python_cover.png',
+    FastAPI: '/fastapi_cover.png',
+    Docker: '/docker_cover.png',
+    RAG: '/rag_cover.png',
+    PostgreSQL: 'https://images.unsplash.com/photo-1544383835-bda2bc66a55d?w=600&auto=format&fit=crop&q=80',
+    'Agentic AI': 'https://images.unsplash.com/photo-1677442136019-21780efad99a?w=600&auto=format&fit=crop&q=80',
+    HTTP: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
+    'CI/CD': 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=600&auto=format&fit=crop&q=80',
+    MCP: 'https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&auto=format&fit=crop&q=80'
+  };
+
+  // Build Granular Mini-Subtopics Catalog with Members Grouped by Role
+  const miniSubtopicsCatalog: MiniSubtopic[] = useMemo(() => {
+    const list: MiniSubtopic[] = [];
 
     topics.forEach((topic) => {
       topic.subtopics.forEach((sub) => {
-        const memberProf: Record<string, ProficiencyLevel> = {};
-        let masteredCount = 0;
+        const mentors: User[] = [];
+        const learners: User[] = [];
+        const seekers: User[] = [];
 
         members.forEach((m) => {
           const overrideKey = `${m.id}_${sub.id}`;
-          if (customProficiencies[overrideKey]) {
-            memberProf[m.id] = customProficiencies[overrideKey];
-            if (customProficiencies[overrideKey] === 'mastered') masteredCount++;
+          const customLevel = customProficiencies[overrideKey];
+
+          if (customLevel === 'mastered') {
+            mentors.push(m);
+            return;
+          }
+          if (customLevel === 'needs_help') {
+            seekers.push(m);
+            return;
+          }
+          if (customLevel === 'learning' || customLevel === 'proficient') {
+            learners.push(m);
             return;
           }
 
-          // Check if user flagged confusion in daily check-ins for this topic
+          // Check if member reported confusion in daily check-ins
           const hasReportedConfusion = checkIns.some(
             (c) =>
               c.userId === m.id &&
               (c.confusedAbout?.toLowerCase().includes(sub.name.toLowerCase()) ||
-                c.whatLearned?.toLowerCase().includes(sub.name.toLowerCase()) && c.confidenceScore <= 2)
+                (c.whatLearned?.toLowerCase().includes(sub.name.toLowerCase()) && c.confidenceScore <= 2))
           );
 
           if (hasReportedConfusion) {
-            memberProf[m.id] = 'needs_help';
+            seekers.push(m);
             return;
           }
 
-          // Deterministic mastery calculation based on topic status & member progress
+          // Calculate verified evidence mastery
           const evidence = calculateEvidence(topic.id, m.id);
-          if (evidence.verifiedMasteryPct >= 80) {
-            memberProf[m.id] = 'mastered';
-            masteredCount++;
-          } else if (evidence.verifiedMasteryPct >= 50 || sub.status === 'completed') {
-            memberProf[m.id] = 'proficient';
-            masteredCount += 0.7;
-          } else if (sub.status === 'learning' || evidence.verifiedMasteryPct > 0) {
-            memberProf[m.id] = 'learning';
-          } else {
-            memberProf[m.id] = 'not_started';
+          if (evidence.verifiedMasteryPct >= 75) {
+            mentors.push(m);
+          } else if (evidence.verifiedMasteryPct >= 35 || sub.status === 'completed' || sub.status === 'learning') {
+            learners.push(m);
           }
         });
 
-        const teamMasteryPct = Math.round((masteredCount / members.length) * 100);
+        const teamMasteryPct = Math.round((mentors.length / Math.max(members.length, 1)) * 100);
 
         list.push({
-          subtopicId: sub.id,
-          subtopicName: sub.name,
+          id: sub.id,
+          name: sub.name,
           topicId: topic.id,
           topicName: topic.name,
           phaseNumber: topic.phaseNumber,
           category: topic.category,
-          memberProficiencies: memberProf,
+          mentors,
+          learners,
+          seekers,
           teamMasteryPct
         });
       });
@@ -155,141 +188,109 @@ export const SkillMatrixView: React.FC = () => {
     return list;
   }, [topics, members, customProficiencies, checkIns, calculateEvidence]);
 
-  // Automated Peer Pairing Recommendations Engine
-  const pairingRecommendations: PairingRecommendation[] = useMemo(() => {
-    const recs: PairingRecommendation[] = [];
+  // Group Mini-Subtopics by Category / Domain
+  const groupedByDomain = useMemo(() => {
+    const groups: Record<string, { topic: Topic; subtopics: MiniSubtopic[] }[]> = {};
 
-    subtopicMasteries.forEach((sub) => {
-      // Find members who need help or are learning this subtopic
-      const strugglingMembers = members.filter(
-        (m) =>
-          sub.memberProficiencies[m.id] === 'needs_help' ||
-          (sub.memberProficiencies[m.id] === 'learning' && m.id === currentUser.id)
-      );
+    topics.forEach((topic) => {
+      const cat = topic.category;
+      if (!groups[cat]) {
+        groups[cat] = [];
+      }
+      const subs = miniSubtopicsCatalog.filter((s) => s.topicId === topic.id);
+      groups[cat].push({ topic, subtopics: subs });
+    });
 
-      // Find members who have Mastered this subtopic
-      const masterMembers = members.filter(
-        (m) => sub.memberProficiencies[m.id] === 'mastered'
-      );
+    return groups;
+  }, [topics, miniSubtopicsCatalog]);
 
-      if (strugglingMembers.length > 0 && masterMembers.length > 0) {
-        strugglingMembers.forEach((learner) => {
-          // Pair with the highest streak or different user
-          const mentor = masterMembers.find((m) => m.id !== learner.id) || masterMembers[0];
-          if (mentor && mentor.id !== learner.id) {
-            recs.push({
-              id: `pair_${sub.subtopicId}_${learner.id}_${mentor.id}`,
-              subtopicName: sub.subtopicName,
-              topicName: sub.topicName,
-              category: sub.category,
-              strugglingUser: learner,
-              mentorUser: mentor,
-              reason: `${learner.name.split(' ')[0]} needs help with ${sub.subtopicName}, while ${mentor.name.split(' ')[0]} has 100% verified mastery.`
-            });
-          }
+  // Personalized "Recommended Mentors For You" Algorithm
+  const myMentorRecommendations: MentorMatch[] = useMemo(() => {
+    const recs: MentorMatch[] = [];
+
+    // Find topics where current user is learning or seeking help
+    miniSubtopicsCatalog.forEach((sub) => {
+      const isSeeking = sub.seekers.some((s) => s.id === currentUser.id);
+      const isLearning = sub.learners.some((l) => l.id === currentUser.id);
+
+      if (isSeeking || isLearning) {
+        // Find other friends who have mastered this subtopic
+        const availableMentors = sub.mentors.filter((m) => m.id !== currentUser.id);
+        if (availableMentors.length > 0) {
+          const topMentor = availableMentors[0];
+          recs.push({
+            id: `rec_${sub.id}_${topMentor.id}`,
+            mentor: topMentor,
+            subtopicName: sub.name,
+            topicName: sub.topicName,
+            category: sub.category,
+            reason: isSeeking
+              ? `You flagged difficulty on ${sub.name}. ${topMentor.name.split(' ')[0]} has verified experience and can explain it clearly.`
+              : `You are currently practicing ${sub.name}. ${topMentor.name.split(' ')[0]} has mastered this and is available to pair.`
+          });
+        }
+      }
+    });
+
+    // Fallback: If user has completed everything or none in progress, suggest senior peer
+    if (recs.length === 0 && members.length > 1) {
+      const friend = members.find((m) => m.id !== currentUser.id) || members[1];
+      const featuredSub = miniSubtopicsCatalog.find((s) => s.mentors.some((m) => m.id === friend.id)) || miniSubtopicsCatalog[0];
+      if (featuredSub && friend) {
+        recs.push({
+          id: `rec_fallback_${featuredSub.id}`,
+          mentor: friend,
+          subtopicName: featuredSub.name,
+          topicName: featuredSub.topicName,
+          category: featuredSub.category,
+          reason: `${friend.name.split(' ')[0]} is an experienced mentor in ${featuredSub.category} and open for co-op pairing.`
         });
       }
+    }
+
+    return recs.slice(0, 4);
+  }, [miniSubtopicsCatalog, currentUser.id, members]);
+
+  // Selected Friend for 1-on-1 Knowledge Exchange
+  const selectedFriend = useMemo(() => {
+    return members.find((m) => m.id === selectedFriendId) || members[0];
+  }, [members, selectedFriendId]);
+
+  // Friend Knowledge Exchange Matrix
+  const friendExchange = useMemo(() => {
+    if (!selectedFriend || selectedFriend.id === currentUser.id) {
+      return { whatFriendCanTeachMe: [], whatICanTeachFriend: [], mutualTopics: [] };
+    }
+
+    const whatFriendCanTeachMe: MiniSubtopic[] = [];
+    const whatICanTeachFriend: MiniSubtopic[] = [];
+    const mutualTopics: MiniSubtopic[] = [];
+
+    miniSubtopicsCatalog.forEach((sub) => {
+      const friendIsMaster = sub.mentors.some((m) => m.id === selectedFriend.id);
+      const iAmMaster = sub.mentors.some((m) => m.id === currentUser.id);
+      const friendIsLearning = sub.learners.some((l) => l.id === selectedFriend.id) || sub.seekers.some((s) => s.id === selectedFriend.id);
+      const iAmLearning = sub.learners.some((l) => l.id === currentUser.id) || sub.seekers.some((s) => s.id === currentUser.id);
+
+      if (friendIsMaster && iAmLearning) {
+        whatFriendCanTeachMe.push(sub);
+      } else if (iAmMaster && friendIsLearning) {
+        whatICanTeachFriend.push(sub);
+      } else if (friendIsLearning && iAmLearning) {
+        mutualTopics.push(sub);
+      }
     });
 
-    // Return unique top 4 recommendations
-    const seen = new Set<string>();
-    return recs.filter((r) => {
-      const key = `${r.strugglingUser.id}_${r.subtopicName}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    }).slice(0, 4);
-  }, [subtopicMasteries, members, currentUser.id]);
+    return { whatFriendCanTeachMe, whatICanTeachFriend, mutualTopics };
+  }, [miniSubtopicsCatalog, selectedFriend, currentUser.id]);
 
-  // Filtered Subtopics List
-  const filteredSubtopics = useMemo(() => {
-    return subtopicMasteries.filter((sub) => {
-      // Phase Filter
-      if (selectedPhase !== 'all' && sub.phaseNumber !== selectedPhase) {
-        return false;
-      }
-
-      // Search Query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        const matchName = sub.subtopicName.toLowerCase().includes(q);
-        const matchTopic = sub.topicName.toLowerCase().includes(q);
-        const matchCat = sub.category.toLowerCase().includes(q);
-        if (!matchName && !matchTopic && !matchCat) return false;
-      }
-
-      // Status Filter
-      if (statusFilter === 'needs_help') {
-        const hasHelpNeed = Object.values(sub.memberProficiencies).some((p) => p === 'needs_help');
-        if (!hasHelpNeed) return false;
-      } else if (statusFilter === 'mastered') {
-        const hasMastered = Object.values(sub.memberProficiencies).some((p) => p === 'mastered');
-        if (!hasMastered) return false;
-      }
-
-      return true;
-    });
-  }, [subtopicMasteries, selectedPhase, searchQuery, statusFilter]);
-
-  // Team Knowledge Gaps (Subtopics where < 50% of the team is proficient)
-  const teamKnowledgeGaps = useMemo(() => {
-    return subtopicMasteries
-      .filter((s) => s.teamMasteryPct < 40)
-      .slice(0, 3);
-  }, [subtopicMasteries]);
-
-  // Handle 1-Click Launch of Pairing Room
-  const handleLaunchPairing = (rec: PairingRecommendation) => {
-    startPairingSession(rec.mentorUser.id, `${rec.category}: ${rec.subtopicName}`);
+  // Launch Live Pairing Session with a Mentor
+  const handleLaunchPairing = (mentorId: string, subtopicName: string, category: string) => {
+    startPairingSession(mentorId, `${category}: ${subtopicName}`);
     setActiveTab('pairing_studio');
   };
 
-  // Helper Badge Color
-  const getProficiencyBadge = (level: ProficiencyLevel) => {
-    switch (level) {
-      case 'mastered':
-        return {
-          bg: 'rgba(52, 211, 153, 0.15)',
-          border: 'rgba(52, 211, 153, 0.35)',
-          color: '#34d399',
-          label: 'Mastered',
-          icon: CheckCircle2
-        };
-      case 'proficient':
-        return {
-          bg: 'rgba(56, 189, 248, 0.15)',
-          border: 'rgba(56, 189, 248, 0.35)',
-          color: '#38bdf8',
-          label: 'Proficient',
-          icon: Check
-        };
-      case 'learning':
-        return {
-          bg: 'rgba(212, 163, 115, 0.15)',
-          border: 'rgba(212, 163, 115, 0.35)',
-          color: '#d4a373',
-          label: 'Learning',
-          icon: Clock
-        };
-      case 'needs_help':
-        return {
-          bg: 'rgba(239, 68, 68, 0.18)',
-          border: 'rgba(239, 68, 68, 0.45)',
-          color: '#ef4444',
-          label: 'Needs Help',
-          icon: AlertCircle
-        };
-      case 'not_started':
-      default:
-        return {
-          bg: 'rgba(255, 255, 255, 0.03)',
-          border: 'rgba(255, 255, 255, 0.08)',
-          color: 'var(--text-dim)',
-          label: 'Not Started',
-          icon: HelpCircle
-        };
-    }
-  };
+  const categories = ['all', 'Python', 'FastAPI', 'Docker', 'RAG', 'PostgreSQL', 'Agentic AI'];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '1360px', margin: '0 auto', width: '100%' }}>
@@ -301,36 +302,36 @@ export const SkillMatrixView: React.FC = () => {
         </div>
       )}
 
-      {/* Top Banner & Header */}
+      {/* 1. Header Bar with Tabs */}
       <div className="glass-panel" style={{ padding: '22px 28px', background: 'linear-gradient(135deg, rgba(20, 20, 26, 0.95) 0%, rgba(30, 30, 42, 0.85) 100%)', border: '1px solid rgba(212, 163, 115, 0.22)', borderRadius: '18px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
               <span className="badge badge-learning" style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Grid size={12} /> Team Knowledge & Peer Matrix
+                <HeartHandshake size={12} /> Community Skill & Peer Mentoring Hub
               </span>
               <span style={{ fontSize: '0.74rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Users size={13} /> {members.length} Active Engineers
+                <Users size={13} /> {members.length} Engineers Connected
               </span>
             </div>
             <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#eae6e1', letterSpacing: '-0.02em', margin: 0 }}>
-              Group Skill & Subtopic Competency Hub
+              Team Skill Hub & Mini-Subtopic Knowledge Directory
             </h1>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '4px', margin: 0 }}>
-              Inspect member-by-member mastery on specific subtasks (e.g. Python Dictionaries, FastAPI Depends, Docker Compose) and connect peers to help each other.
+              Visual directory of who has mastered specific mini-concepts (e.g. Python Dictionaries, FastAPI Depends, Docker Compose) and can explain them to friends.
             </p>
           </div>
 
-          {/* View Mode Toggle Pill */}
-          <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '3px', gap: '4px' }}>
+          {/* Primary View Switcher */}
+          <div style={{ display: 'flex', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '3px', gap: '4px', flexWrap: 'wrap' }}>
             <button
-              onClick={() => setViewMode('subtopics')}
+              onClick={() => setActiveTabLocal('visual_directory')}
               style={{
-                padding: '6px 14px',
+                padding: '7px 14px',
                 borderRadius: '9px',
                 border: 'none',
-                background: viewMode === 'subtopics' ? '#d4a373' : 'transparent',
-                color: viewMode === 'subtopics' ? '#0e0e12' : 'var(--text-muted)',
+                background: activeTab === 'visual_directory' ? '#d4a373' : 'transparent',
+                color: activeTab === 'visual_directory' ? '#0e0e12' : 'var(--text-muted)',
                 fontSize: '0.78rem',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -340,16 +341,17 @@ export const SkillMatrixView: React.FC = () => {
                 transition: 'all 0.15s ease'
               }}
             >
-              <Layers size={14} /> Subtopic Heatmap
+              <Layers size={14} /> Visual Subtopic Cards
             </button>
+
             <button
-              onClick={() => setViewMode('domains')}
+              onClick={() => setActiveTabLocal('friend_exchange')}
               style={{
-                padding: '6px 14px',
+                padding: '7px 14px',
                 borderRadius: '9px',
                 border: 'none',
-                background: viewMode === 'domains' ? '#d4a373' : 'transparent',
-                color: viewMode === 'domains' ? '#0e0e12' : 'var(--text-muted)',
+                background: activeTab === 'friend_exchange' ? '#d4a373' : 'transparent',
+                color: activeTab === 'friend_exchange' ? '#0e0e12' : 'var(--text-muted)',
                 fontSize: '0.78rem',
                 fontWeight: 700,
                 cursor: 'pointer',
@@ -359,30 +361,49 @@ export const SkillMatrixView: React.FC = () => {
                 transition: 'all 0.15s ease'
               }}
             >
-              <BarChart3 size={14} /> 15-Phase Overview
+              <Handshake size={14} /> Friend-to-Friend Exchange
+            </button>
+
+            <button
+              onClick={() => setActiveTabLocal('15_phase_matrix')}
+              style={{
+                padding: '7px 14px',
+                borderRadius: '9px',
+                border: 'none',
+                background: activeTab === '15_phase_matrix' ? '#d4a373' : 'transparent',
+                color: activeTab === '15_phase_matrix' ? '#0e0e12' : 'var(--text-muted)',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <BarChart3 size={14} /> 15-Phase Matrix Table
             </button>
           </div>
         </div>
       </div>
 
-      {/* 🤝 SMART PEER PAIRING & MENTOR MATCHMAKER BANNER */}
-      {pairingRecommendations.length > 0 && (
+      {/* 2. 💡 "RECOMMENDED MENTORS FOR YOU" HERO CAROUSEL */}
+      {myMentorRecommendations.length > 0 && (
         <div className="glass-panel" style={{ padding: '20px 24px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Sparkles size={18} color="#38bdf8" />
               <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#eae6e1', margin: 0 }}>
-                Smart Peer Matchmaking & Pairing Bridge
+                Recommended Friends to Explain Your Current Topics
               </h2>
             </div>
             <span style={{ fontSize: '0.72rem', color: '#38bdf8', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '3px 8px', borderRadius: '8px', fontWeight: 700 }}>
-              {pairingRecommendations.length} Complementary Pairs Detected
+              Matched for {currentUser.name.split(' ')[0]}
             </span>
           </div>
 
-          {/* Pairing Recommendation Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '14px' }}>
-            {pairingRecommendations.map((rec) => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: '14px' }}>
+            {myMentorRecommendations.map((rec) => (
               <div
                 key={rec.id}
                 style={{
@@ -397,54 +418,44 @@ export const SkillMatrixView: React.FC = () => {
                 }}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                       {rec.category}
                     </span>
-                    <span style={{ fontSize: '0.64rem', color: 'var(--text-dim)', background: 'rgba(255, 255, 255, 0.06)', padding: '2px 6px', borderRadius: '4px' }}>
-                      1-on-1 Session
+                    <span style={{ fontSize: '0.64rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                      ✓ Verified Mentor
                     </span>
                   </div>
 
-                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#eae6e1', margin: '0 0 8px 0' }}>
+                  <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#eae6e1', margin: '0 0 6px 0' }}>
                     {rec.subtopicName}
                   </h4>
 
-                  {/* Mentee vs Mentor Match Capsule */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(0, 0, 0, 0.25)', padding: '8px 10px', borderRadius: '10px' }}>
-                    {/* Learner (Needs Help) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                      <img src={rec.strugglingUser.avatar} alt={rec.strugglingUser.name} style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #ef4444', objectFit: 'cover' }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#eae6e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {rec.strugglingUser.name.split(' ')[0]}
-                        </span>
-                        <span style={{ fontSize: '0.62rem', color: '#ef4444' }}>Needs Help</span>
-                      </div>
-                    </div>
-
-                    <ArrowRight size={14} color="var(--text-dim)" />
-
-                    {/* Mentor (Mastered) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
-                      <img src={rec.mentorUser.avatar} alt={rec.mentorUser.name} style={{ width: '24px', height: '24px', borderRadius: '50%', border: '1px solid #34d399', objectFit: 'cover' }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-                        <span style={{ fontSize: '0.74rem', fontWeight: 700, color: '#eae6e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {rec.mentorUser.name.split(' ')[0]}
-                        </span>
-                        <span style={{ fontSize: '0.62rem', color: '#34d399' }}>Can Teach</span>
-                      </div>
+                  {/* Mentor Info Capsule */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(0, 0, 0, 0.25)', padding: '8px 10px', borderRadius: '10px' }}>
+                    <img src={rec.mentor.avatar} alt={rec.mentor.name} style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #34d399', objectFit: 'cover' }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#eae6e1' }}>
+                        {rec.mentor.name}
+                      </span>
+                      <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
+                        {rec.mentor.streak}🔥 Streak • {rec.mentor.currentPhase.split(':')[0]}
+                      </span>
                     </div>
                   </div>
+
+                  <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '8px 0 0 0', lineHeight: 1.4 }}>
+                    {rec.reason}
+                  </p>
                 </div>
 
-                {/* 1-Click Action: Start Live Pairing */}
+                {/* 1-Tap Action: Ask Friend to Explain */}
                 <button
-                  onClick={() => handleLaunchPairing(rec)}
+                  onClick={() => handleLaunchPairing(rec.mentor.id, rec.subtopicName, rec.category)}
                   className="btn btn-primary"
                   style={{ padding: '8px 12px', fontSize: '0.76rem', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                 >
-                  <Handshake size={14} /> Start Live Pairing Room
+                  <Handshake size={14} /> Ask {rec.mentor.name.split(' ')[0]} to Explain (15 min)
                 </button>
               </div>
             ))}
@@ -452,212 +463,483 @@ export const SkillMatrixView: React.FC = () => {
         </div>
       )}
 
-      {/* VIEW MODE 1: GRANULAR SUBTOPIC HEATMAP */}
-      {viewMode === 'subtopics' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+      {/* 3. TAB 1: VISUAL SUBTOPIC CARDS & DOMAIN COVERS */}
+      {activeTab === 'visual_directory' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           
-          {/* Filter Toolbar: Phase Dropdown + Keyword Search + Needs Help Toggle */}
+          {/* Filter Toolbar: Category Pills + Search + Tag Filter */}
           <div className="glass-panel" style={{ padding: '14px 18px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              
-              {/* Phase Dropdown */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                  Curriculum Module:
-                </span>
-                <select
-                  value={selectedPhase}
-                  onChange={(e) => setSelectedPhase(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                  className="form-control"
-                  style={{ padding: '6px 12px', fontSize: '0.78rem', width: 'auto', background: 'rgba(255, 255, 255, 0.05)', color: '#eae6e1', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px' }}
+            {/* Category Pills */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 700, marginRight: '4px' }}>
+                DOMAIN:
+              </span>
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '8px',
+                    fontSize: '0.74rem',
+                    fontWeight: selectedCategory === cat ? 700 : 500,
+                    cursor: 'pointer',
+                    background: selectedCategory === cat ? '#d4a373' : 'rgba(255, 255, 255, 0.04)',
+                    color: selectedCategory === cat ? '#0e0e12' : 'var(--text-muted)',
+                    border: selectedCategory === cat ? '1px solid #d4a373' : '1px solid rgba(255, 255, 255, 0.08)'
+                  }}
                 >
-                  <option value="all">All 15 Phases ({subtopicMasteries.length} subtopics)</option>
-                  {topics.map((t) => (
-                    <option key={t.id} value={t.phaseNumber}>
-                      Phase {t.phaseNumber}: {t.name} ({t.subtopics.length} subtopics)
-                    </option>
-                  ))}
-                </select>
+                  {cat.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
+            {/* Keyword Search & Mentor Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px', padding: '5px 10px' }}>
+                <Search size={13} color="#d4a373" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search subtopic (e.g. dictionary, yield)..."
+                  style={{ background: 'transparent', border: 'none', outline: 'none', color: '#eae6e1', fontSize: '0.75rem', width: '180px' }}
+                />
               </div>
 
-              {/* Status Filter */}
-              <div style={{ display: 'flex', gap: '4px' }}>
-                {[
-                  { id: 'all', label: 'All Subtopics' },
-                  { id: 'needs_help', label: '🆘 Needs Help Only' },
-                  { id: 'mastered', label: '🟢 Mastered Only' }
-                ].map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => setStatusFilter(f.id as typeof statusFilter)}
+              {/* Tag Filter */}
+              <select
+                value={mentorFilter}
+                onChange={(e) => setMentorFilter(e.target.value as typeof mentorFilter)}
+                className="form-control"
+                style={{ padding: '5px 8px', fontSize: '0.74rem', width: 'auto', background: 'rgba(255, 255, 255, 0.05)', color: '#eae6e1', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              >
+                <option value="all">All Subtopics</option>
+                <option value="can_teach">🙋‍♂️ Topics I Can Explain</option>
+                <option value="need_help">🆘 Topics I Need Help With</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Grouped Visual Domain Cards Grid */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
+            {Object.keys(groupedByDomain)
+              .filter((cat) => selectedCategory === 'all' || cat === selectedCategory)
+              .map((domainCat) => {
+                const domainModules = groupedByDomain[domainCat];
+                const allDomainSubs = domainModules.flatMap((m) => m.subtopics);
+                const isExpanded = expandedDomains[domainCat] !== false;
+                const coverImage = domainCovers[domainCat] || domainCovers.Python;
+
+                return (
+                  <div
+                    key={domainCat}
+                    className="glass-panel"
                     style={{
-                      padding: '5px 10px',
-                      borderRadius: '8px',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      background: statusFilter === f.id ? 'rgba(212, 163, 115, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-                      color: statusFilter === f.id ? '#d4a373' : 'var(--text-dim)',
-                      border: statusFilter === f.id ? '1px solid rgba(212, 163, 115, 0.4)' : '1px solid rgba(255, 255, 255, 0.06)'
+                      background: 'rgba(20, 20, 26, 0.85)',
+                      border: '1px solid rgba(212, 163, 115, 0.18)',
+                      borderRadius: '16px',
+                      overflow: 'hidden'
                     }}
                   >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Keyword Search */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '10px', padding: '6px 12px', minWidth: '240px' }}>
-              <Search size={14} color="#d4a373" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search e.g. dictionaries, yield, dockerfile..."
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  outline: 'none',
-                  color: '#eae6e1',
-                  fontSize: '0.78rem',
-                  width: '100%'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Subtopic Heatmap Matrix Table */}
-          <div className="glass-panel" style={{ overflowX: 'auto', padding: '16px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '16px' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  <th style={{ padding: '12px 14px', fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 700, minWidth: '220px' }}>
-                    Subtopic & Concept
-                  </th>
-                  <th style={{ padding: '12px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center', width: '110px' }}>
-                    Team Mastery
-                  </th>
-                  {members.map((m) => (
-                    <th key={m.id} style={{ padding: '12px', fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700, textAlign: 'center', minWidth: '130px' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        <img src={m.avatar} alt={m.name} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid var(--accent-copper)', objectFit: 'cover' }} />
-                        <span style={{ fontSize: '0.76rem', color: '#eae6e1', fontWeight: 700 }}>{m.name.split(' ')[0]}</span>
-                        <span style={{ fontSize: '0.62rem', color: 'var(--text-dim)' }}>{m.role.toUpperCase()}</span>
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredSubtopics.length === 0 ? (
-                  <tr>
-                    <td colSpan={2 + members.length} style={{ padding: '36px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.85rem' }}>
-                      No subtopics match the current search or filter criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredSubtopics.map((sub) => (
-                    <tr
-                      key={sub.subtopicId}
+                    {/* Domain Card Header with Visual Cover */}
+                    <div
+                      onClick={() => toggleDomainExpand(domainCat)}
                       style={{
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.04)',
-                        transition: 'background 0.12s ease'
+                        padding: '16px 20px',
+                        background: 'linear-gradient(90deg, rgba(20, 20, 26, 0.95) 0%, rgba(30, 30, 42, 0.8) 100%)',
+                        borderBottom: isExpanded ? '1px solid rgba(255, 255, 255, 0.08)' : 'none',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '16px'
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
                     >
-                      {/* Subtopic Title & Phase Info */}
-                      <td style={{ padding: '12px 14px' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#eae6e1' }}>
-                              {sub.subtopicName}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <img
+                          src={coverImage}
+                          alt={domainCat}
+                          style={{
+                            width: '48px',
+                            height: '48px',
+                            borderRadius: '10px',
+                            objectFit: 'cover',
+                            border: '1px solid rgba(212, 163, 115, 0.3)',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)'
+                          }}
+                        />
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#eae6e1', margin: 0 }}>
+                              {domainCat} Track
+                            </h3>
+                            <span style={{ fontSize: '0.68rem', color: '#d4a373', background: 'rgba(212, 163, 115, 0.15)', border: '1px solid rgba(212, 163, 115, 0.3)', padding: '2px 8px', borderRadius: '6px', fontWeight: 700 }}>
+                              {allDomainSubs.length} Mini-Subtopics
                             </span>
                           </div>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: '2px' }}>
-                            Phase {sub.phaseNumber}: {sub.topicName} • {sub.category}
+                          <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                            {domainModules.length} Modules ({domainModules.map((m) => `P${m.topic.phaseNumber}`).join(', ')})
                           </span>
                         </div>
-                      </td>
+                      </div>
 
-                      {/* Team Aggregate Mastery */}
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '0.76rem', fontWeight: 800, color: sub.teamMasteryPct >= 75 ? '#34d399' : sub.teamMasteryPct >= 40 ? '#d4a373' : '#ef4444' }}>
-                            {sub.teamMasteryPct}%
-                          </span>
-                          <div style={{ width: '60px', height: '4px', background: 'rgba(255, 255, 255, 0.08)', borderRadius: '2px', overflow: 'hidden' }}>
-                            <div style={{ width: `${sub.teamMasteryPct}%`, height: '100%', background: sub.teamMasteryPct >= 75 ? '#34d399' : sub.teamMasteryPct >= 40 ? '#d4a373' : '#ef4444', borderRadius: '2px' }} />
-                          </div>
-                        </div>
-                      </td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-dim)' }}>
+                          {isExpanded ? 'Hide Subtopics' : 'Expand Subtopics'}
+                        </span>
+                        {isExpanded ? <ChevronUp size={18} color="var(--text-muted)" /> : <ChevronDown size={18} color="var(--text-muted)" />}
+                      </div>
+                    </div>
 
-                      {/* Individual Member Cells */}
-                      {members.map((m) => {
-                        const level = sub.memberProficiencies[m.id] || 'not_started';
-                        const badge = getProficiencyBadge(level);
-                        const Icon = badge.icon;
+                    {/* Expandable Mini-Subtopics Cards Grid */}
+                    {isExpanded && (
+                      <div style={{ padding: '18px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '14px' }}>
+                        {allDomainSubs
+                          .filter((sub) => {
+                            if (searchQuery.trim()) {
+                              const q = searchQuery.toLowerCase();
+                              return sub.name.toLowerCase().includes(q) || sub.topicName.toLowerCase().includes(q);
+                            }
+                            if (mentorFilter === 'can_teach') {
+                              return sub.mentors.some((m) => m.id === currentUser.id);
+                            }
+                            if (mentorFilter === 'need_help') {
+                              return sub.seekers.some((s) => s.id === currentUser.id);
+                            }
+                            return true;
+                          })
+                          .map((sub) => {
+                            const iCanTeach = sub.mentors.some((m) => m.id === currentUser.id);
+                            const iNeedHelp = sub.seekers.some((s) => s.id === currentUser.id);
 
-                        return (
-                          <td key={m.id} style={{ padding: '8px 12px', textAlign: 'center' }}>
-                            <button
-                              onClick={() => setInspectedSubtopic({ subtopic: sub, targetUser: m })}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '5px',
-                                padding: '5px 10px',
-                                borderRadius: '8px',
-                                background: badge.bg,
-                                border: `1px solid ${badge.border}`,
-                                color: badge.color,
-                                fontSize: '0.72rem',
-                                fontWeight: 700,
-                                cursor: 'pointer',
-                                transition: 'all 0.12s ease',
-                                width: '100%',
-                                justifyContent: 'center'
-                              }}
-                              title={`Click to inspect or change ${m.name}'s status on ${sub.subtopicName}`}
-                            >
-                              <Icon size={12} />
-                              <span>{badge.label}</span>
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                            return (
+                              <div
+                                key={sub.id}
+                                style={{
+                                  background: 'rgba(255, 255, 255, 0.02)',
+                                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                                  borderRadius: '12px',
+                                  padding: '14px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  justifyContent: 'space-between',
+                                  gap: '12px',
+                                  transition: 'all 0.15s ease'
+                                }}
+                              >
+                                <div>
+                                  {/* Subtopic Header */}
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                                    <div>
+                                      <span style={{ fontSize: '0.64rem', color: '#d4a373', fontWeight: 700, textTransform: 'uppercase' }}>
+                                        Phase {sub.phaseNumber} • {sub.topicName.split(':')[0]}
+                                      </span>
+                                      <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#eae6e1', margin: '2px 0 0 0' }}>
+                                        {sub.name}
+                                      </h4>
+                                    </div>
 
-          {/* Legend Strip */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#34d399' }} />
-              <span><strong>Mastered</strong> (Can Mentor Peers)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#38bdf8' }} />
-              <span><strong>Proficient</strong> (Completed)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#d4a373' }} />
-              <span><strong>Learning</strong> (In Progress)</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#ef4444' }} />
-              <span><strong>Needs Help</strong> (Struggling/Confused)</span>
-            </div>
+                                    {/* Aggregate Team Mastery Bar */}
+                                    <div style={{ textAlign: 'right' }}>
+                                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: sub.teamMasteryPct >= 70 ? '#34d399' : '#d4a373' }}>
+                                        {sub.teamMasteryPct}%
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Mentors Stack (🟢 Who Can Teach & Explain) */}
+                                  <div style={{ marginTop: '10px' }}>
+                                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                                      AVAILABLE PEER MENTORS ({sub.mentors.length}):
+                                    </span>
+                                    {sub.mentors.length === 0 ? (
+                                      <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                                        No mentors yet — be the first to teach!
+                                      </span>
+                                    ) : (
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        {sub.mentors.map((mentor) => (
+                                          <div
+                                            key={mentor.id}
+                                            onClick={() => handleLaunchPairing(mentor.id, sub.name, sub.category)}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '5px',
+                                              background: 'rgba(52, 211, 153, 0.12)',
+                                              border: '1px solid rgba(52, 211, 153, 0.3)',
+                                              borderRadius: '16px',
+                                              padding: '2px 8px 2px 3px',
+                                              cursor: 'pointer'
+                                            }}
+                                            title={`Click to start pairing with ${mentor.name} on ${sub.name}`}
+                                          >
+                                            <img src={mentor.avatar} alt={mentor.name} style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover' }} />
+                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#34d399' }}>
+                                              {mentor.name.split(' ')[0]}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Seekers / Seeking Explanation (🔴 Who Asked For Help) */}
+                                  {sub.seekers.length > 0 && (
+                                    <div style={{ marginTop: '8px' }}>
+                                      <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#ef4444', display: 'block', marginBottom: '4px' }}>
+                                        SEEKING EXPLANATION ({sub.seekers.length}):
+                                      </span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                        {sub.seekers.map((seeker) => (
+                                          <div
+                                            key={seeker.id}
+                                            style={{
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              gap: '4px',
+                                              background: 'rgba(239, 68, 68, 0.12)',
+                                              border: '1px solid rgba(239, 68, 68, 0.25)',
+                                              borderRadius: '14px',
+                                              padding: '2px 6px'
+                                            }}
+                                          >
+                                            <img src={seeker.avatar} alt={seeker.name} style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} />
+                                            <span style={{ fontSize: '0.64rem', color: '#ef4444' }}>
+                                              {seeker.name.split(' ')[0]}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Your Personal Quick Action Toggle */}
+                                <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '10px', display: 'flex', gap: '6px' }}>
+                                  <button
+                                    onClick={() => updateSubtopicStatus(currentUser.id, sub.id, iCanTeach ? 'not_started' : 'mastered')}
+                                    style={{
+                                      flex: 1,
+                                      padding: '6px 8px',
+                                      borderRadius: '8px',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      background: iCanTeach ? '#34d399' : 'rgba(52, 211, 153, 0.12)',
+                                      color: iCanTeach ? '#0e0e12' : '#34d399',
+                                      border: '1px solid rgba(52, 211, 153, 0.3)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '4px'
+                                    }}
+                                  >
+                                    <CheckCircle2 size={12} /> {iCanTeach ? 'I Teach This ✓' : 'I Can Explain 🙋‍♂️'}
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      updateSubtopicStatus(currentUser.id, sub.id, iNeedHelp ? 'not_started' : 'needs_help');
+                                      if (!iNeedHelp) {
+                                        requestPeerHelp(sub.name, sub.category, `Need explanation on ${sub.name}`, 2);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      fontSize: '0.7rem',
+                                      fontWeight: 700,
+                                      cursor: 'pointer',
+                                      background: iNeedHelp ? '#ef4444' : 'rgba(239, 68, 68, 0.12)',
+                                      color: iNeedHelp ? '#ffffff' : '#ef4444',
+                                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
+                                    title="Ask teammates for an explanation"
+                                  >
+                                    <AlertCircle size={12} /> {iNeedHelp ? 'Help Requested' : 'Need Help 🆘'}
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}
 
-      {/* VIEW MODE 2: HIGH LEVEL 15-PHASE OVERVIEW */}
-      {viewMode === 'domains' && (
+      {/* 4. TAB 2: FRIEND-TO-FRIEND KNOWLEDGE EXCHANGE */}
+      {activeTab === 'friend_exchange' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Friend Selector Capsule */}
+          <div className="glass-panel" style={{ padding: '18px 24px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.2)', borderRadius: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Users size={20} color="#d4a373" />
+              <div>
+                <span style={{ fontSize: '0.72rem', color: '#d4a373', fontWeight: 700, textTransform: 'uppercase' }}>
+                  1-on-1 Peer Knowledge Bridge
+                </span>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#eae6e1', margin: 0 }}>
+                  Compare Knowledge with a Teammate
+                </h3>
+              </div>
+            </div>
+
+            {/* Friend Dropdown Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Select Peer:</span>
+              <select
+                value={selectedFriendId}
+                onChange={(e) => setSelectedFriendId(e.target.value)}
+                className="form-control"
+                style={{ padding: '8px 14px', fontSize: '0.82rem', width: 'auto', background: 'rgba(255, 255, 255, 0.06)', color: '#eae6e1', border: '1px solid rgba(212, 163, 115, 0.3)', borderRadius: '10px', fontWeight: 700 }}
+              >
+                {members
+                  .filter((m) => m.id !== currentUser.id)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.currentPhase.split(':')[0]})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Friend Exchange Comparison Cards Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+            
+            {/* Column 1: What Friend Can Teach You */}
+            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+                <GraduationCap size={18} color="#38bdf8" />
+                <div>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#eae6e1', margin: 0 }}>
+                    What {selectedFriend?.name.split(' ')[0]} Can Teach You
+                  </h4>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    Concepts {selectedFriend?.name.split(' ')[0]} has mastered that you're practicing
+                  </span>
+                </div>
+              </div>
+
+              {friendExchange.whatFriendCanTeachMe.length === 0 ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.78rem' }}>
+                  No active learning gaps found between you and {selectedFriend?.name.split(' ')[0]}.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {friendExchange.whatFriendCanTeachMe.map((sub) => (
+                    <div key={sub.id} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '0.64rem', color: '#38bdf8', fontWeight: 700 }}>{sub.category}</span>
+                        <h5 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#eae6e1', margin: '2px 0 0 0' }}>{sub.name}</h5>
+                      </div>
+                      <button
+                        onClick={() => handleLaunchPairing(selectedFriend.id, sub.name, sub.category)}
+                        className="btn btn-primary"
+                        style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '8px' }}
+                      >
+                        Ask to Pair
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Column 2: What You Can Teach Friend */}
+            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(52, 211, 153, 0.25)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+                <UserCheck size={18} color="#34d399" />
+                <div>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#eae6e1', margin: 0 }}>
+                    What You Can Teach {selectedFriend?.name.split(' ')[0]}
+                  </h4>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    Concepts you've mastered where {selectedFriend?.name.split(' ')[0]} needs guidance
+                  </span>
+                </div>
+              </div>
+
+              {friendExchange.whatICanTeachFriend.length === 0 ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.78rem' }}>
+                  {selectedFriend?.name.split(' ')[0]} has not flagged any difficulties in your mastered topics.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {friendExchange.whatICanTeachFriend.map((sub) => (
+                    <div key={sub.id} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '0.64rem', color: '#34d399', fontWeight: 700 }}>{sub.category}</span>
+                        <h5 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#eae6e1', margin: '2px 0 0 0' }}>{sub.name}</h5>
+                      </div>
+                      <button
+                        onClick={() => handleLaunchPairing(selectedFriend.id, sub.name, sub.category)}
+                        className="btn btn-secondary"
+                        style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '8px' }}
+                      >
+                        Offer Help
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Column 3: Mutual Study Topics */}
+            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.25)', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+                <Handshake size={18} color="#d4a373" />
+                <div>
+                  <h4 style={{ fontSize: '0.92rem', fontWeight: 800, color: '#eae6e1', margin: 0 }}>
+                    Mutual Co-Op Study Topics
+                  </h4>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                    Concepts you are both currently practicing together
+                  </span>
+                </div>
+              </div>
+
+              {friendExchange.mutualTopics.length === 0 ? (
+                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.78rem' }}>
+                  No overlapping in-progress topics found.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {friendExchange.mutualTopics.map((sub) => (
+                    <div key={sub.id} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.06)', borderRadius: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span style={{ fontSize: '0.64rem', color: '#d4a373', fontWeight: 700 }}>{sub.category}</span>
+                        <h5 style={{ fontSize: '0.8rem', fontWeight: 700, color: '#eae6e1', margin: '2px 0 0 0' }}>{sub.name}</h5>
+                      </div>
+                      <button
+                        onClick={() => handleLaunchPairing(selectedFriend.id, sub.name, sub.category)}
+                        className="btn btn-secondary"
+                        style={{ padding: '5px 10px', fontSize: '0.7rem', borderRadius: '8px' }}
+                      >
+                        Co-Op Solve
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 5. TAB 3: 15-PHASE OVERVIEW MATRIX TABLE */}
+      {activeTab === '15_phase_matrix' && (
         <div className="glass-panel" style={{ overflowX: 'auto', padding: '20px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '16px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', minWidth: '850px' }}>
             <thead>
@@ -713,142 +995,6 @@ export const SkillMatrixView: React.FC = () => {
               ))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {/* ⚠️ TEAM KNOWLEDGE GAPS & WORKSHOP RECOMMENDATIONS */}
-      {teamKnowledgeGaps.length > 0 && (
-        <div className="glass-panel" style={{ padding: '20px 24px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <AlertCircle size={18} color="#ef4444" />
-            <h3 style={{ fontSize: '0.98rem', fontWeight: 800, color: '#eae6e1', margin: 0 }}>
-              Identified Team Knowledge Gaps (Below 40% Team Mastery)
-            </h3>
-          </div>
-          <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 14px 0' }}>
-            These concepts have the lowest group confidence. Consider scheduling a group pair programming workshop or mentor session.
-          </p>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '12px' }}>
-            {teamKnowledgeGaps.map((gap) => (
-              <div key={gap.subtopicId} style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '12px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <h4 style={{ fontSize: '0.84rem', fontWeight: 700, color: '#eae6e1', margin: 0 }}>{gap.subtopicName}</h4>
-                  <span style={{ fontSize: '0.68rem', color: '#ef4444', fontWeight: 600 }}>{gap.teamMasteryPct}% Group Proficiency</span>
-                </div>
-                <button
-                  onClick={() => {
-                    requestPeerHelp(gap.subtopicName, gap.category, `Group workshop requested for ${gap.subtopicName}`, 1);
-                    setToastMessage(`✓ Created group peer help request for "${gap.subtopicName}"`);
-                    setTimeout(() => setToastMessage(null), 2500);
-                  }}
-                  className="btn btn-secondary"
-                  style={{ padding: '5px 10px', fontSize: '0.72rem' }}
-                >
-                  Request Workshop
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 🔍 SUBTOPIC INSPECTOR & MENTOR CONNECT MODAL */}
-      {inspectedSubtopic && (
-        <div className="modal-overlay" onClick={() => setInspectedSubtopic(null)} style={{ zIndex: 9999 }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '540px', background: 'rgba(20, 20, 26, 0.96)', border: '1px solid rgba(212, 163, 115, 0.35)', borderRadius: '18px', padding: '24px' }}>
-            
-            {/* Modal Header */}
-            <div style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '14px', marginBottom: '16px' }}>
-              <span style={{ fontSize: '0.7rem', color: '#d4a373', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Phase {inspectedSubtopic.subtopic.phaseNumber} • {inspectedSubtopic.subtopic.category}
-              </span>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#eae6e1', margin: '4px 0 0 0' }}>
-                {inspectedSubtopic.subtopic.subtopicName}
-              </h2>
-              <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
-                Module: {inspectedSubtopic.subtopic.topicName}
-              </p>
-            </div>
-
-            {/* Set My Proficiency Status */}
-            <div style={{ background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '14px', marginBottom: '18px' }}>
-              <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#eae6e1', display: 'block', marginBottom: '8px' }}>
-                Update Your Mastery on this Subtopic:
-              </span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <button
-                  onClick={() => updateSubtopicStatus(currentUser.id, inspectedSubtopic.subtopic.subtopicId, 'mastered')}
-                  style={{ padding: '8px', borderRadius: '8px', background: 'rgba(52, 211, 153, 0.15)', border: '1px solid rgba(52, 211, 153, 0.35)', color: '#34d399', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                >
-                  <CheckCircle2 size={13} /> I Can Teach This 🙋‍♂️
-                </button>
-                <button
-                  onClick={() => {
-                    updateSubtopicStatus(currentUser.id, inspectedSubtopic.subtopic.subtopicId, 'needs_help');
-                    requestPeerHelp(inspectedSubtopic.subtopic.subtopicName, inspectedSubtopic.subtopic.category, `Need help understanding ${inspectedSubtopic.subtopic.subtopicName}`, 2);
-                  }}
-                  style={{ padding: '8px', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.35)', color: '#ef4444', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                >
-                  <AlertCircle size={13} /> I Need Help 🆘
-                </button>
-              </div>
-            </div>
-
-            {/* Teammates who have Mastered this topic */}
-            <div style={{ marginBottom: '18px' }}>
-              <span style={{ fontSize: '0.76rem', fontWeight: 700, color: 'var(--text-muted)', display: 'block', marginBottom: '8px' }}>
-                Available Peer Mentors for this Subtopic:
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {members
-                  .filter((m) => inspectedSubtopic.subtopic.memberProficiencies[m.id] === 'mastered')
-                  .map((mentor) => (
-                    <div
-                      key={mentor.id}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '10px',
-                        background: 'rgba(255, 255, 255, 0.02)',
-                        border: '1px solid rgba(255, 255, 255, 0.06)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <img src={mentor.avatar} alt={mentor.name} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #34d399', objectFit: 'cover' }} />
-                        <div>
-                          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#eae6e1', display: 'block' }}>{mentor.name}</span>
-                          <span style={{ fontSize: '0.64rem', color: '#34d399' }}>Verified Mastery • {mentor.streak}🔥 Streak</span>
-                        </div>
-                      </div>
-
-                      {mentor.id !== currentUser.id && (
-                        <button
-                          onClick={() => {
-                            startPairingSession(mentor.id, `${inspectedSubtopic.subtopic.category}: ${inspectedSubtopic.subtopic.subtopicName}`);
-                            setActiveTab('pairing_studio');
-                            setInspectedSubtopic(null);
-                          }}
-                          className="btn btn-primary"
-                          style={{ padding: '6px 12px', fontSize: '0.72rem', borderRadius: '8px' }}
-                        >
-                          Pair with {mentor.name.split(' ')[0]}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            {/* Modal Close Button */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setInspectedSubtopic(null)} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '0.78rem' }}>
-                Close
-              </button>
-            </div>
-          </div>
         </div>
       )}
 
