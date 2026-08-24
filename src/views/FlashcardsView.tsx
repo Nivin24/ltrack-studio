@@ -19,6 +19,154 @@ import {
   Maximize2
 } from 'lucide-react';
 
+/**
+ * Sea Wave Question Text: smoothly moves each letter up and down in an undulating ocean wave on hover
+ */
+const SeaWaveQuestionText: React.FC<{ text: string; className?: string; style?: React.CSSProperties }> = ({ text, className, style }) => {
+  let letterCounter = 0;
+  const words = text.split(' ');
+
+  return (
+    <span className={className} style={{ display: 'inline', ...style }}>
+      {words.map((word, wIdx) => {
+        const letters = Array.from(word);
+        return (
+          <span key={wIdx} style={{ display: 'inline-block', whiteSpace: 'nowrap', marginRight: '0.28em' }}>
+            {letters.map((char, cIdx) => {
+              const delay = (letterCounter * 0.035).toFixed(3);
+              letterCounter++;
+              return (
+                <span
+                  key={cIdx}
+                  className="sea-wave-letter"
+                  style={{
+                    '--letter-delay': `${delay}s`,
+                    display: 'inline-block'
+                  } as React.CSSProperties}
+                >
+                  {char}
+                </span>
+              );
+            })}
+          </span>
+        );
+      })}
+    </span>
+  );
+};
+
+/**
+ * Renders Python code snippets with syntax highlighting matching the scratchpad / code editor
+ */
+const PythonCodeSnippet: React.FC<{ code: string; maxHeight?: string }> = ({ code, maxHeight = '130px' }) => {
+  const lines = code.split('\n');
+
+  const highlightLine = (line: string) => {
+    if (line.trim().startsWith('#')) {
+      return <span style={{ color: '#849c86', fontStyle: 'italic' }}>{line}</span>;
+    }
+
+    const tokens = line.split(/(\b(?:def|async|await|import|from|return|class|yield|with|if|elif|else|try|except|finally|for|while|in|as|pass|raise|break|continue|True|False|None)\b|\b(?:int|str|dict|list|set|tuple|Depends|BaseModel|FastAPI|APIRouter|Session|select|func|Vector|Embeddings)\b|#.*$|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|@\w+)/g);
+
+    return tokens.map((token, i) => {
+      if (!token) return null;
+      if (token.startsWith('#')) {
+        return <span key={i} style={{ color: '#849c86', fontStyle: 'italic' }}>{token}</span>;
+      }
+      if (token.startsWith('"') || token.startsWith("'")) {
+        return <span key={i} style={{ color: '#34d399' }}>{token}</span>;
+      }
+      if (token.startsWith('@')) {
+        return <span key={i} style={{ color: '#e5b982' }}>{token}</span>;
+      }
+      if (/^(def|async|await|import|from|return|class|yield|with|if|elif|else|try|except|finally|for|while|in|as|pass|raise|break|continue|True|False|None)$/.test(token)) {
+        return <span key={i} style={{ color: '#c47662', fontWeight: 700 }}>{token}</span>;
+      }
+      if (/^(int|str|dict|list|set|tuple|Depends|BaseModel|FastAPI|APIRouter|Session|select|func|Vector|Embeddings)$/.test(token)) {
+        return <span key={i} style={{ color: '#38bdf8', fontWeight: 600 }}>{token}</span>;
+      }
+      return <span key={i} style={{ color: '#d4a373' }}>{token}</span>;
+    });
+  };
+
+  return (
+    <div
+      style={{
+        background: '#0a0a0e',
+        border: '1px solid rgba(212, 163, 115, 0.22)',
+        borderRadius: '10px',
+        padding: '10px 14px',
+        fontFamily: "'Fira Code', ui-monospace, SFMono-Regular, monospace",
+        fontSize: '0.75rem',
+        lineHeight: 1.5,
+        overflowX: 'auto',
+        overflowY: 'auto',
+        maxHeight,
+        boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.6)'
+      }}
+    >
+      <pre style={{ margin: 0, color: '#d4a373' }}>
+        {lines.map((line, lIdx) => (
+          <div key={lIdx}>{highlightLine(line) || ' '}</div>
+        ))}
+      </pre>
+    </div>
+  );
+};
+
+/**
+ * Renders text with `inline code` enclosed in stylish highlighted boxes.
+ * If isQuestion is true, non-code text letters animate with the Sea Wave letter lift.
+ */
+const FormattedText: React.FC<{
+  text: string;
+  isQuestion?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}> = ({ text, isQuestion = false, className, style }) => {
+  if (!text) return null;
+
+  const parts = text.split(/(`[^`]+`)/g);
+
+  return (
+    <span className={className} style={{ display: 'inline', ...style }}>
+      {parts.map((part, idx) => {
+        if (part.startsWith('`') && part.endsWith('`')) {
+          const codeContent = part.slice(1, -1);
+          return (
+            <code
+              key={idx}
+              className="inline-code-box"
+              style={{
+                display: 'inline-block',
+                background: 'rgba(212, 163, 115, 0.12)',
+                border: '1px solid rgba(212, 163, 115, 0.3)',
+                color: '#d4a373',
+                borderRadius: '6px',
+                padding: '1px 6px',
+                fontSize: '0.86em',
+                fontFamily: "'Fira Code', ui-monospace, SFMono-Regular, monospace",
+                fontWeight: 600,
+                margin: '0 3px',
+                verticalAlign: 'baseline',
+                letterSpacing: '-0.01em'
+              }}
+            >
+              {codeContent}
+            </code>
+          );
+        }
+
+        if (isQuestion) {
+          return <SeaWaveQuestionText key={idx} text={part} />;
+        }
+
+        return <span key={idx}>{part}</span>;
+      })}
+    </span>
+  );
+};
+
 export const FlashcardsView: React.FC = () => {
   const { currentUser } = useLTrack();
 
@@ -506,14 +654,12 @@ export const FlashcardsView: React.FC = () => {
 
                         {/* Front Body with Auto Scroll if long */}
                         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                          <h3 className="apple-lyrics-text" style={{ fontSize: '0.98rem', fontWeight: 800, lineHeight: 1.45, margin: 0 }}>
-                            {card.prompt}
+                          <h3 style={{ fontSize: '0.98rem', fontWeight: 800, lineHeight: 1.45, margin: 0, color: '#f5f5f7' }}>
+                            <FormattedText text={card.prompt} isQuestion={true} />
                           </h3>
 
                           {card.codeSnippet && (
-                            <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '10px 12px', fontFamily: 'monospace', fontSize: '0.74rem', color: '#38bdf8', lineHeight: 1.45, overflowX: 'auto', overflowY: 'auto', maxHeight: '120px' }}>
-                              <pre style={{ margin: 0 }}>{card.codeSnippet}</pre>
-                            </div>
+                            <PythonCodeSnippet code={card.codeSnippet} maxHeight="120px" />
                           )}
                         </div>
 
@@ -600,19 +746,19 @@ export const FlashcardsView: React.FC = () => {
                             <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
                               Core Answer:
                             </span>
-                            <p className="apple-lyrics-text" style={{ fontSize: '0.88rem', fontWeight: 700, lineHeight: 1.45, margin: 0 }}>
-                              {card.answer}
+                            <p style={{ fontSize: '0.88rem', fontWeight: 700, lineHeight: 1.45, margin: 0, color: '#eae6e1' }}>
+                              <FormattedText text={card.answer} isQuestion={false} />
                             </p>
                           </div>
 
                           <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '9px 11px', borderRadius: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
                             <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Deep Explanation:</strong>
-                            {card.explanation}
+                            <FormattedText text={card.explanation} isQuestion={false} />
                           </div>
 
                           <div style={{ background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '8px 10px', borderRadius: '8px', fontSize: '0.72rem', color: '#eae6e1', lineHeight: 1.4 }}>
                             <strong style={{ color: '#34d399', display: 'block', marginBottom: '1px' }}>Key Takeaway:</strong>
-                            {card.keyTakeaway}
+                            <FormattedText text={card.keyTakeaway} isQuestion={false} />
                           </div>
                         </div>
 
@@ -766,14 +912,12 @@ export const FlashcardsView: React.FC = () => {
 
                 {/* Focus Front Body with Auto Scroll if long */}
                 <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '6px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <h2 className="apple-lyrics-text" style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1.45, margin: 0 }}>
-                    {currentFocusCard.prompt}
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1.45, margin: 0, color: '#f5f5f7' }}>
+                    <FormattedText text={currentFocusCard.prompt} isQuestion={true} />
                   </h2>
 
                   {currentFocusCard.codeSnippet && (
-                    <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px', fontFamily: 'monospace', fontSize: '0.82rem', color: '#38bdf8', lineHeight: 1.5, overflowX: 'auto', maxHeight: '180px' }}>
-                      <pre style={{ margin: 0 }}>{currentFocusCard.codeSnippet}</pre>
-                    </div>
+                    <PythonCodeSnippet code={currentFocusCard.codeSnippet} maxHeight="180px" />
                   )}
                 </div>
 
@@ -897,19 +1041,19 @@ export const FlashcardsView: React.FC = () => {
                     <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
                       Core Answer:
                     </span>
-                    <p className="apple-lyrics-text" style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.45, margin: 0 }}>
-                      {currentFocusCard.answer}
+                    <p style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.45, margin: 0, color: '#eae6e1' }}>
+                      <FormattedText text={currentFocusCard.answer} isQuestion={false} />
                     </p>
                   </div>
 
                   <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px 14px', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
                     <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Deep Explanation:</strong>
-                    {currentFocusCard.explanation}
+                    <FormattedText text={currentFocusCard.explanation} isQuestion={false} />
                   </div>
 
                   <div style={{ background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#eae6e1' }}>
                     <strong style={{ color: '#34d399', display: 'block', marginBottom: '2px' }}>Key Takeaway:</strong>
-                    {currentFocusCard.keyTakeaway}
+                    <FormattedText text={currentFocusCard.keyTakeaway} isQuestion={false} />
                   </div>
                 </div>
 

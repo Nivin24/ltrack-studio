@@ -388,44 +388,52 @@ select.form-control option {
 }
 
 /* ========================================================= */
-/* Question Text Wave Shimmer Animation (No Background Glow) */
+/* Sea Wave Letter Lift Animation (Smooth Sine Wave Pass)    */
 /* ========================================================= */
 
-@keyframes questionTextWave {
+@keyframes seaWaveLetterSingle {
   0% {
-    background-position: 150% 0;
+    transform: translateY(0px);
+    color: #eae6e1;
+  }
+  50% {
+    transform: translateY(-5px);
+    color: #ffffff;
+    text-shadow: 0 2px 10px rgba(212, 163, 115, 0.45);
   }
   100% {
-    background-position: -150% 0;
+    transform: translateY(0px);
+    color: #eae6e1;
   }
 }
 
-.apple-lyrics-text {
+.sea-wave-letter {
   display: inline-block;
-  color: #f5f5f7;
-  line-height: 1.5;
-  transition: all 0.25s ease;
-  word-break: break-word;
+  transition: transform 0.25s ease, color 0.25s ease;
+  will-change: transform;
 }
 
-/* Fluid Wave Shimmer on Question Hover (No background glow) */
-.flashcard-interactive-card:hover .apple-lyrics-text,
-.apple-lyrics-text:hover {
-  background: linear-gradient(
-    90deg,
-    #eae6e1 0%,
-    #eae6e1 25%,
-    #ffffff 40%,
-    #d4a373 50%,
-    #38bdf8 60%,
-    #ffffff 75%,
-    #eae6e1 100%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: questionTextWave 2.8s linear infinite;
-  cursor: pointer;
+/* Single smooth wave pass when card or question is hovered */
+.flashcard-interactive-card:hover .sea-wave-letter,
+.sea-wave-text-container:hover .sea-wave-letter {
+  animation: seaWaveLetterSingle 1.15s cubic-bezier(0.45, 0.05, 0.55, 0.95) 1 forwards;
+  animation-delay: var(--letter-delay, 0s);
+}
+
+/* Inline Code Box Highlight for `code` inside backticks */
+.inline-code-box {
+  display: inline-block;
+  background: rgba(212, 163, 115, 0.12);
+  border: 1px solid rgba(212, 163, 115, 0.3);
+  color: #d4a373;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86em;
+  font-weight: 600;
+  margin: 0 2px;
+  vertical-align: baseline;
+  letter-spacing: -0.01em;
 }
 
 /* ========================================================= */
