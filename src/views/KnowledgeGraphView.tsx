@@ -91,6 +91,25 @@ export const KnowledgeGraphView: React.FC = () => {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>('py_basics');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
+  // Movable Node Positions state (persisted or defaults)
+  const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>(() => {
+    try {
+      const saved = localStorage.getItem('ltrack_knowledge_graph_positions');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    const initialPos: Record<string, { x: number; y: number }> = {};
+    initialKnowledgeNodes.forEach((node) => {
+      initialPos[node.id] = { x: node.x || 100, y: node.y || 100 };
+    });
+    return initialPos;
+  });
+
+  // Node Dragging State
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
   // Pan & Zoom Viewport
   const [zoomLevel, setZoomLevel] = useState<number>(0.85);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 40, y: 40 });
@@ -336,9 +355,24 @@ export const KnowledgeGraphView: React.FC = () => {
     return available[0] || null;
   }, [currentMap]);
 
-  // Mouse Pan Handlers
+  // Node Dragging Handlers
+  const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
+    e.stopPropagation();
+    setDraggingNodeId(nodeId);
+    setSelectedNodeId(nodeId);
+
+    const pos = nodePositions[nodeId] || { x: 0, y: 0 };
+    const canvasX = (e.clientX - panOffset.x) / zoomLevel;
+    const canvasY = (e.clientY - panOffset.y) / zoomLevel;
+
+    setDragOffset({
+      x: canvasX - pos.x,
+      y: canvasY - pos.y
+    });
+  };
+
+  // Mouse Pan & Drag Handlers
   const handleMouseDown = (e: React.MouseEvent) => {
-    // Only pan if clicking on background canvas
     if ((e.target as HTMLElement).tagName === 'svg' || (e.target as HTMLElement).id === 'graph-canvas-bg') {
       setIsPanning(true);
       setStartPan({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
@@ -346,7 +380,17 @@ export const KnowledgeGraphView: React.FC = () => {
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
+    if (draggingNodeId) {
+      const canvasX = (e.clientX - panOffset.x) / zoomLevel;
+      const canvasY = (e.clientY - panOffset.y) / zoomLevel;
+      setNodePositions((prev) => ({
+        ...prev,
+        [draggingNodeId]: {
+          x: Math.round(canvasX - dragOffset.x),
+          y: Math.round(canvasY - dragOffset.y)
+        }
+      }));
+    } else if (isPanning) {
       setPanOffset({
         x: e.clientX - startPan.x,
         y: e.clientY - startPan.y
@@ -355,17 +399,38 @@ export const KnowledgeGraphView: React.FC = () => {
   };
 
   const handleMouseUp = () => {
+    if (draggingNodeId) {
+      setDraggingNodeId(null);
+      try {
+        localStorage.setItem('ltrack_knowledge_graph_positions', JSON.stringify(nodePositions));
+      } catch {
+        // ignore
+      }
+    }
     setIsPanning(false);
   };
 
   // Zoom Helpers
   const handleZoom = (delta: number) => {
-    setZoomLevel((prev) => Math.min(Math.max(prev + delta, 0.45), 1.6));
+    setZoomLevel((prev) => Math.min(Math.max(prev + delta, 0.35), 2.2));
   };
 
   const handleCenterGraph = () => {
     setZoomLevel(0.85);
     setPanOffset({ x: 40, y: 40 });
+  };
+
+  const handleResetPositions = () => {
+    const defaultPos: Record<string, { x: number; y: number }> = {};
+    initialKnowledgeNodes.forEach((node) => {
+      defaultPos[node.id] = { x: node.x || 100, y: node.y || 100 };
+    });
+    setNodePositions(defaultPos);
+    try {
+      localStorage.removeItem('ltrack_knowledge_graph_positions');
+    } catch {
+      // ignore
+    }
   };
 
   return (
@@ -663,25 +728,87 @@ export const KnowledgeGraphView: React.FC = () => {
                 overflow: 'visible'
               }}
             >
+              {/* Arrow Marker Definitions */}
+              <defs>
+                <marker
+                  id="arrow-mastered"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="7"
+                  markerHeight="7"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#34d399" />
+                </marker>
+                <marker
+                  id="arrow-active"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="7"
+                  markerHeight="7"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#38bdf8" />
+                </marker>
+                <marker
+                  id="arrow-highlighted"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="7"
+                  markerHeight="7"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="#d4a373" />
+                </marker>
+                <marker
+                  id="arrow-default"
+                  viewBox="0 0 10 10"
+                  refX="9"
+                  refY="5"
+                  markerWidth="7"
+                  markerHeight="7"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="rgba(255, 255, 255, 0.35)" />
+                </marker>
+              </defs>
+
               <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoomLevel})`}>
-                {/* 1. EDGES / CONNECTING PATHS */}
+                {/* 1. EDGES / CONNECTING PATHS WITH RELATIONSHIPS */}
                 {initialKnowledgeEdges.map((edge) => {
                   const sourceNode = initialKnowledgeNodes.find((n) => n.id === edge.source);
                   const targetNode = initialKnowledgeNodes.find((n) => n.id === edge.target);
                   if (!sourceNode || !targetNode) return null;
 
-                  const srcX = (sourceNode.x || 0) + 110;
-                  const srcY = (sourceNode.y || 0) + 40;
-                  const tgtX = (targetNode.x || 0);
-                  const tgtY = (targetNode.y || 0) + 40;
+                  const srcPos = nodePositions[edge.source] || { x: sourceNode.x || 0, y: sourceNode.y || 0 };
+                  const tgtPos = nodePositions[edge.target] || { x: targetNode.x || 0, y: targetNode.y || 0 };
+
+                  // Smart Attachment calculation
+                  let srcX = srcPos.x + 220;
+                  let srcY = srcPos.y + 40;
+                  let tgtX = tgtPos.x;
+                  let tgtY = tgtPos.y + 40;
+
+                  if (tgtPos.x + 220 < srcPos.x) {
+                    srcX = srcPos.x;
+                    tgtX = tgtPos.x + 220;
+                  }
 
                   const dx = tgtX - srcX;
-                  const cx1 = srcX + dx * 0.45;
+                  const curveOffset = Math.max(Math.abs(dx) * 0.45, 40);
+                  const cx1 = srcX + (tgtX > srcX ? curveOffset : -curveOffset);
                   const cy1 = srcY;
-                  const cx2 = tgtX - dx * 0.45;
+                  const cx2 = tgtX - (tgtX > srcX ? curveOffset : -curveOffset);
                   const cy2 = tgtY;
 
                   const pathData = `M ${srcX} ${srcY} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${tgtX} ${tgtY}`;
+
+                  // Midpoint of Cubic Bezier curve (t = 0.5)
+                  const midX = 0.125 * srcX + 0.375 * cx1 + 0.375 * cx2 + 0.125 * tgtX;
+                  const midY = 0.125 * srcY + 0.375 * cy1 + 0.375 * cy2 + 0.125 * tgtY;
 
                   const srcStatus = getNodeStatus(edge.source);
                   const tgtStatus = getNodeStatus(edge.target);
@@ -692,88 +819,137 @@ export const KnowledgeGraphView: React.FC = () => {
                     hoveredNodeId === edge.source ||
                     hoveredNodeId === edge.target;
 
-                  let strokeColor = 'rgba(255, 255, 255, 0.12)';
+                  let strokeColor = 'rgba(255, 255, 255, 0.22)';
+                  let markerUrl = 'url(#arrow-default)';
+
                   if (srcStatus === 'mastered' && tgtStatus === 'mastered') {
                     strokeColor = '#34d399';
+                    markerUrl = 'url(#arrow-mastered)';
                   } else if (isFlowActive) {
                     strokeColor = '#38bdf8';
+                    markerUrl = 'url(#arrow-active)';
                   } else if (isPathHighlighted) {
                     strokeColor = hoveredNodeId ? '#38bdf8' : '#d4a373';
+                    markerUrl = hoveredNodeId ? 'url(#arrow-active)' : 'url(#arrow-highlighted)';
                   }
 
+                  const labelText = edge.label || (edge.relationship === 'prerequisite' ? 'Prerequisite' : edge.relationship);
+                  const labelWidth = Math.max(labelText.length * 6.6 + 18, 56);
+
                   return (
-                    <g key={edge.id} style={{ transition: 'all 0.2s ease' }}>
+                    <g key={edge.id}>
+                      {/* Glow Underlay on Highlight */}
+                      {isPathHighlighted && (
+                        <path
+                          d={pathData}
+                          fill="none"
+                          stroke={strokeColor}
+                          strokeWidth="6"
+                          opacity="0.3"
+                        />
+                      )}
+
+                      {/* Main Edge Path */}
                       <path
                         d={pathData}
                         fill="none"
                         stroke={strokeColor}
-                        strokeWidth={isPathHighlighted ? 2.8 : isFlowActive ? 1.8 : 1.2}
-                        strokeDasharray={edge.relationship === 'composes' ? '4 4' : undefined}
-                        opacity={isPathHighlighted ? 1 : hoveredNodeId ? 0.3 : 0.65}
+                        strokeWidth={isPathHighlighted ? 2.8 : isFlowActive ? 2 : 1.4}
+                        strokeDasharray={edge.relationship === 'composes' ? '5 4' : undefined}
+                        markerEnd={markerUrl}
+                        opacity={isPathHighlighted ? 1 : hoveredNodeId ? 0.35 : 0.75}
                       />
+
                       {/* Animated Pulse Particle on Active Flows */}
                       {isFlowActive && (
-                        <circle r={isPathHighlighted ? 3.8 : 2.8} fill={isPathHighlighted ? '#34d399' : '#38bdf8'}>
-                          <animateMotion path={pathData} dur="3.2s" repeatCount="indefinite" />
+                        <circle r={isPathHighlighted ? 4 : 3} fill={isPathHighlighted ? '#34d399' : '#38bdf8'}>
+                          <animateMotion path={pathData} dur="3s" repeatCount="indefinite" />
                         </circle>
                       )}
+
+                      {/* Relationship Pill Badge on Edge Curve */}
+                      <g transform={`translate(${midX}, ${midY})`} style={{ pointerEvents: 'none' }}>
+                        <rect
+                          x={-labelWidth / 2}
+                          y="-10"
+                          width={labelWidth}
+                          height="20"
+                          rx="10"
+                          fill="#0e0e14"
+                          stroke={isPathHighlighted ? strokeColor : isFlowActive ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.18)'}
+                          strokeWidth="1.2"
+                          box-shadow="0 2px 8px rgba(0,0,0,0.8)"
+                        />
+                        <text
+                          textAnchor="middle"
+                          y="3.5"
+                          fill={isPathHighlighted ? '#ffffff' : isFlowActive ? '#38bdf8' : '#eae6e1'}
+                          fontSize="8.5"
+                          fontWeight="700"
+                          fontFamily="sans-serif"
+                        >
+                          {labelText}
+                        </text>
+                      </g>
                     </g>
                   );
                 })}
 
-                {/* 2. NODES */}
+                {/* 2. MOVABLE DRAGGABLE NODES */}
                 {filteredNodes.map((node) => {
+                  const pos = nodePositions[node.id] || { x: node.x || 0, y: node.y || 0 };
                   const status = getNodeStatus(node.id);
                   const isSelected = selectedNodeId === node.id;
                   const isHovered = hoveredNodeId === node.id;
+                  const isDragging = draggingNodeId === node.id;
                   const isRecommended = nextRecommendedNode?.id === node.id;
                   const domainInfo = domainClusters.find((d) => d.id === node.domain);
                   const nodeColor = domainInfo?.color || '#d4a373';
 
-                  let statusBg = 'rgba(24, 24, 32, 0.94)';
+                  let statusBg = 'rgba(24, 24, 32, 0.96)';
                   let statusBorder = 'rgba(255, 255, 255, 0.12)';
                   let statusIcon = <Lock size={12} color="#71717a" />;
                   let statusLabel = 'Locked';
                   let statusTextColor = '#71717a';
 
                   if (status === 'mastered') {
-                    statusBg = 'rgba(16, 32, 24, 0.94)';
-                    statusBorder = 'rgba(52, 211, 153, 0.45)';
+                    statusBg = 'rgba(16, 32, 24, 0.96)';
+                    statusBorder = 'rgba(52, 211, 153, 0.55)';
                     statusIcon = <CheckCircle2 size={12} color="#34d399" />;
                     statusLabel = 'Mastered';
                     statusTextColor = '#34d399';
                   } else if (status === 'in_progress') {
-                    statusBg = 'rgba(28, 30, 42, 0.94)';
-                    statusBorder = 'rgba(56, 189, 248, 0.45)';
+                    statusBg = 'rgba(28, 30, 42, 0.96)';
+                    statusBorder = 'rgba(56, 189, 248, 0.55)';
                     statusIcon = <Zap size={12} color="#38bdf8" />;
                     statusLabel = 'In Progress';
                     statusTextColor = '#38bdf8';
                   } else if (status === 'unlocked') {
-                    statusBg = 'rgba(32, 26, 20, 0.94)';
-                    statusBorder = 'rgba(212, 163, 115, 0.45)';
+                    statusBg = 'rgba(32, 26, 20, 0.96)';
+                    statusBorder = 'rgba(212, 163, 115, 0.55)';
                     statusIcon = <Unlock size={12} color="#d4a373" />;
                     statusLabel = 'Ready to Learn';
                     statusTextColor = '#d4a373';
                   }
 
-                  if (isSelected || isHovered) {
-                    statusBorder = isHovered ? nodeColor : '#ffffff';
+                  if (isSelected || isHovered || isDragging) {
+                    statusBorder = isHovered || isDragging ? nodeColor : '#ffffff';
                   }
 
                   return (
                     <g
                       key={node.id}
-                      transform={`translate(${node.x || 0}, ${node.y || 0})`}
-                      onClick={() => setSelectedNodeId(node.id)}
+                      transform={`translate(${pos.x}, ${pos.y})`}
+                      onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                       onMouseEnter={() => setHoveredNodeId(node.id)}
                       onMouseLeave={() => setHoveredNodeId(null)}
                       style={{
-                        cursor: 'pointer',
-                        transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                        cursor: isDragging ? 'grabbing' : 'grab',
+                        userSelect: 'none'
                       }}
                     >
                       {/* Selection / Recommendation Glow Aura */}
-                      {(isSelected || isHovered || isRecommended) && (
+                      {(isSelected || isHovered || isRecommended || isDragging) && (
                         <rect
                           x="-4"
                           y="-4"
@@ -781,10 +957,10 @@ export const KnowledgeGraphView: React.FC = () => {
                           height="88"
                           rx="14"
                           fill="none"
-                          stroke={isRecommended ? '#34d399' : isHovered ? nodeColor : '#d4a373'}
-                          strokeWidth={isHovered ? 2.5 : 2}
+                          stroke={isRecommended ? '#34d399' : isHovered || isDragging ? nodeColor : '#d4a373'}
+                          strokeWidth={isHovered || isDragging ? 2.5 : 2}
                           strokeDasharray={isRecommended ? '4 4' : undefined}
-                          opacity={isHovered ? 0.95 : 0.8}
+                          opacity={isHovered || isDragging ? 0.95 : 0.8}
                         >
                           {isRecommended && (
                             <animate attributeName="opacity" values="0.4;0.9;0.4" dur="2s" repeatCount="indefinite" />
@@ -801,7 +977,8 @@ export const KnowledgeGraphView: React.FC = () => {
                         rx="12"
                         fill={statusBg}
                         stroke={statusBorder}
-                        strokeWidth={isSelected ? 2 : 1}
+                        strokeWidth={isSelected || isDragging ? 2 : 1}
+                        style={{ filter: isDragging ? 'drop-shadow(0 12px 28px rgba(0,0,0,0.8))' : 'drop-shadow(0 4px 12px rgba(0,0,0,0.4))' }}
                       />
 
                       {/* Domain Color Bar */}
@@ -869,7 +1046,7 @@ export const KnowledgeGraphView: React.FC = () => {
                           fill="rgba(0, 0, 0, 0.35)"
                         />
                         <foreignObject x="6" y="2" width="180" height="14">
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', pointerEvents: 'none' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', fontWeight: 700, color: statusTextColor }}>
                               {statusIcon}
                               <span>{statusLabel}</span>
@@ -925,11 +1102,18 @@ export const KnowledgeGraphView: React.FC = () => {
               </button>
               <div style={{ width: '1px', background: 'rgba(255, 255, 255, 0.1)', margin: '2px 2px' }} />
               <button
+                onClick={handleResetPositions}
+                title="Reset Node Layout Positions"
+                style={{ background: 'transparent', border: 'none', color: '#38bdf8', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', fontWeight: 600 }}
+              >
+                <RotateCcw size={13} /> Reset Layout
+              </button>
+              <button
                 onClick={handleResetGraph}
-                title="Reset Simulation"
+                title="Reset Simulation / Mastery"
                 style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}
               >
-                <RotateCcw size={13} /> Reset
+                Reset Progress
               </button>
             </div>
 
