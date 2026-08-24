@@ -13,7 +13,8 @@ import {
   Settings,
   X,
   HelpCircle,
-  BookOpen
+  BookOpen,
+  Network
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -31,6 +32,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onCloseMob
 
   // Quick Action Tool Rail Items
   const railItems = [
+    {
+      id: 'knowledge_graph',
+      label: 'Knowledge Graph',
+      icon: Network,
+      badge: 'E2E',
+      badgeColor: '#34d399'
+    },
     {
       id: 'quizzes',
       label: 'Concept Quizzes',

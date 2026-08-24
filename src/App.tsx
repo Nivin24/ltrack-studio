@@ -20,6 +20,7 @@ import { ProfileView } from './views/ProfileView';
 import { SettingsView } from './views/SettingsView';
 import { QuizStudioView } from './views/QuizStudioView';
 import { FlashcardsView } from './views/FlashcardsView';
+import { KnowledgeGraphView } from './views/KnowledgeGraphView';
 
 const MainContent: React.FC = () => {
   const { isAuthenticated, activeTab, currentUser } = useLTrack();
@@ -35,6 +36,8 @@ const MainContent: React.FC = () => {
         return currentUser.role === 'admin' ? <AdminDashboard /> : <MemberDashboard />;
       case 'member_dashboard':
         return <MemberDashboard />;
+      case 'knowledge_graph':
+        return <KnowledgeGraphView />;
       case 'roadmap':
         return <VisualRoadmapView />;
       case 'daily_learning':

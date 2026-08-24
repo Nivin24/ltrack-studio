@@ -25,7 +25,8 @@ import {
   Download,
   PlusCircle,
   HelpCircle,
-  Layers
+  Layers,
+  Network
 } from 'lucide-react';
 
 interface Props {
@@ -84,6 +85,19 @@ export const SpotlightSearchModal: React.FC<Props> = ({ isOpen, onClose }) => {
       icon: LayoutDashboard,
       onSelect: () => {
         setActiveTab(currentUser.role === 'admin' ? 'admin_dashboard' : 'member_dashboard');
+        onClose();
+      }
+    },
+    {
+      id: 'page_knowledge_graph',
+      group: 'Applications & Pages',
+      title: 'E2E Knowledge Graph & Skill Web',
+      subtitle: 'Neural skill graph from Python to production with prerequisite cascades & personalized mastery',
+      badge: 'Neural Graph',
+      badgeColor: '#34d399',
+      icon: Network,
+      onSelect: () => {
+        setActiveTab('knowledge_graph');
         onClose();
       }
     },
