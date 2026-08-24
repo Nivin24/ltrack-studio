@@ -255,11 +255,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
               id: `notif_${Date.now()}`,
               type: isMentioned ? 'pairing_invite' : 'help_offered',
               title: isMentioned
-                ? `🤝 Mentioned & Invited by ${incomingMsg.senderName}`
+                ? `Mentioned & Invited by ${incomingMsg.senderName}`
                 : `New message from ${incomingMsg.senderName.split(' ')[0]}`,
               message: isMentioned
                 ? `${incomingMsg.senderName} mentioned you in Live Pairing Studio: "${incomingMsg.text}"`
-                : incomingMsg.text || (incomingMsg.isVoiceNote ? '🎙️ Sent a voice note' : '💻 Shared a code snippet'),
+                : incomingMsg.text || (incomingMsg.isVoiceNote ? 'Sent a voice note' : 'Shared a code snippet'),
               linkTab: 'live_pairing',
               read: false,
               timestamp: 'Just now'
@@ -286,7 +286,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
           {
             id: `call_${Date.now()}`,
             type: 'help_requested',
-            title: `📞 Incoming Voice Call`,
+            title: `Incoming Voice Call`,
             message: `${payload.data.callerName} is requesting a live peer voice pairing call`,
             linkTab: 'live_pairing',
             read: false,

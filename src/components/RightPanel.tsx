@@ -88,7 +88,7 @@ export const RightPanel: React.FC = () => {
       {/* Friendly Motivation Box */}
       <div style={{ background: 'rgba(132, 156, 134, 0.12)', border: '1px solid rgba(132, 156, 134, 0.25)', padding: '14px', borderRadius: '12px', fontSize: '0.8rem', color: '#a4bfa6', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
         <Sparkles size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
-        <span>Great momentum! You're on track to master FastAPI dependency injection this week. Keep going! 🚀</span>
+        <span>Great momentum! You're on track to master FastAPI dependency injection this week. Keep going!</span>
       </div>
 
       {/* Weekly Streak Calendar Widget */}

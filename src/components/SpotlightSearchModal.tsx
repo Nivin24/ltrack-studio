@@ -302,7 +302,7 @@ export const SpotlightSearchModal: React.FC<Props> = ({ isOpen, onClose }) => {
       group: 'Team Members' as const,
       title: m.name,
       subtitle: `${m.role.toUpperCase()} • GitHub: @${m.github} • ${m.currentPhase}`,
-      badge: `${m.streak}🔥 Streak`,
+      badge: `${m.streak} Day Streak`,
       badgeColor: '#d4a373',
       icon: User,
       onSelect: () => {

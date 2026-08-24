@@ -47,7 +47,7 @@ export const DailyCheckInModal: React.FC<Props> = ({ isOpen, onClose, selectedDa
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#eae6e1' }}>Daily Learning Check-In</h2>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Log today's study session, confidence, and reflection to earn your 🔥 streak!
+              Log today's study session, confidence, and reflection to build your daily streak!
             </p>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -79,7 +79,7 @@ export const DailyCheckInModal: React.FC<Props> = ({ isOpen, onClose, selectedDa
                     textTransform: 'capitalize'
                   }}
                 >
-                  {opt === 'yes' ? '✓ Yes' : opt === 'partially' ? '◐ Partially' : '✗ No'}
+                  {opt === 'yes' ? 'Yes' : opt === 'partially' ? 'Partially' : 'No'}
                 </button>
               ))}
             </div>
@@ -140,10 +140,14 @@ export const DailyCheckInModal: React.FC<Props> = ({ isOpen, onClose, selectedDa
                     background: confidenceScore >= star ? 'rgba(229, 185, 130, 0.15)' : '#222222',
                     color: confidenceScore >= star ? '#e5b982' : 'var(--text-muted)',
                     fontWeight: 700,
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px'
                   }}
                 >
-                  ★ {star}
+                  <Star size={13} fill={confidenceScore >= star ? '#e5b982' : 'transparent'} /> {star}
                 </button>
               ))}
             </div>

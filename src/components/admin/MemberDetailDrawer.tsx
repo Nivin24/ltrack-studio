@@ -44,7 +44,7 @@ export const MemberDetailDrawer: React.FC<MemberDetailDrawerProps> = ({ member, 
     setActionPlan('');
     setSuggestedResource('');
     setAssignedMentor('');
-    alert(`Personalized guidance plan dispatched to ${member.name}! 🚀`);
+    alert(`Personalized guidance plan dispatched to ${member.name}!`);
   };
 
   return (
@@ -169,7 +169,7 @@ export const MemberDetailDrawer: React.FC<MemberDetailDrawerProps> = ({ member, 
                 <div key={chk.id} style={{ background: 'rgba(196, 118, 98, 0.1)', padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(196, 118, 98, 0.25)', fontSize: '0.82rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: '#c47662', fontWeight: 700, marginBottom: '2px' }}>
                     <span>{chk.date} Reflection</span>
-                    <span>Confidence: {chk.confidenceScore}/5 ★</span>
+                    <span>Confidence: {chk.confidenceScore}/5</span>
                   </div>
                   <p style={{ color: '#eae6e1', fontSize: '0.8rem' }}>
                     Stuck with: <em>"{chk.confusedAbout || 'Reported low confidence'}"</em>
@@ -179,7 +179,7 @@ export const MemberDetailDrawer: React.FC<MemberDetailDrawerProps> = ({ member, 
             </div>
           ) : (
             <div style={{ fontSize: '0.82rem', color: '#a4bfa6', background: 'rgba(132, 156, 134, 0.1)', padding: '10px', borderRadius: '8px' }}>
-              ✓ No critical struggling alerts. Consistent high confidence scores recorded.
+              No critical struggling alerts. Consistent high confidence scores recorded.
             </div>
           )}
         </div>
@@ -281,7 +281,7 @@ export const MemberDetailDrawer: React.FC<MemberDetailDrawerProps> = ({ member, 
                     <p style={{ color: '#eae6e1', marginBottom: '4px' }}>{g.actionPlan}</p>
                     {g.assignedMentor && (
                       <span style={{ color: '#849c86', fontSize: '0.72rem' }}>
-                        👥 Mentor Assigned: {g.assignedMentor}
+                        Mentor Assigned: {g.assignedMentor}
                       </span>
                     )}
                   </div>

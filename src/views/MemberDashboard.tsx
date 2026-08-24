@@ -43,7 +43,7 @@ export const MemberDashboard: React.FC = () => {
         if (t.id === id) {
           const next = !t.done;
           if (next) {
-            setToastMessage(`✓ Marked "${t.text.slice(0, 32)}..." as completed!`);
+            setToastMessage(`Marked "${t.text.slice(0, 32)}..." as completed!`);
           }
           return { ...t, done: next };
         }
@@ -182,7 +182,7 @@ export const MemberDashboard: React.FC = () => {
                   </div>
 
                   <span style={{ fontSize: '0.72rem', color: task.done ? '#34d399' : 'var(--text-dim)', fontWeight: 600 }}>
-                    {task.done ? 'Done ✓' : 'To Do'}
+                    {task.done ? 'Done' : 'To Do'}
                   </span>
                 </div>
               ))}

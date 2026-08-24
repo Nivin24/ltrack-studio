@@ -101,8 +101,8 @@ export const SkillMatrixView: React.FC = () => {
       localStorage.setItem('ltrack_custom_subtopic_mastery', JSON.stringify(updated));
     } catch {}
 
-    const label = level === 'mastered' ? 'I can explain this 🙋‍♂️' : level === 'needs_help' ? 'Need an explanation 🆘' : level;
-    setToastMessage(`✓ Marked as "${label}"`);
+    const label = level === 'mastered' ? 'I can explain this' : level === 'needs_help' ? 'Need an explanation' : level;
+    setToastMessage(`Marked as "${label}"`);
     setTimeout(() => setToastMessage(null), 2500);
   };
 
@@ -387,7 +387,7 @@ export const SkillMatrixView: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. 💡 "RECOMMENDED MENTORS FOR YOU" HERO CAROUSEL */}
+      {/* 2. RECOMMENDED MENTORS FOR YOU HERO CAROUSEL */}
       {myMentorRecommendations.length > 0 && (
         <div className="glass-panel" style={{ padding: '20px 24px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(56, 189, 248, 0.25)', borderRadius: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
@@ -423,7 +423,7 @@ export const SkillMatrixView: React.FC = () => {
                       {rec.category}
                     </span>
                     <span style={{ fontSize: '0.64rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
-                      ✓ Verified Mentor
+                      Verified Mentor
                     </span>
                   </div>
 
@@ -439,7 +439,7 @@ export const SkillMatrixView: React.FC = () => {
                         {rec.mentor.name}
                       </span>
                       <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                        {rec.mentor.streak}🔥 Streak • {rec.mentor.currentPhase.split(':')[0]}
+                        {rec.mentor.streak} Day Streak • {rec.mentor.currentPhase.split(':')[0]}
                       </span>
                     </div>
                   </div>
@@ -515,8 +515,8 @@ export const SkillMatrixView: React.FC = () => {
                 style={{ padding: '5px 8px', fontSize: '0.74rem', width: 'auto', background: 'rgba(255, 255, 255, 0.05)', color: '#eae6e1', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
               >
                 <option value="all">All Subtopics</option>
-                <option value="can_teach">🙋‍♂️ Topics I Can Explain</option>
-                <option value="need_help">🆘 Topics I Need Help With</option>
+                <option value="can_teach">Topics I Can Explain</option>
+                <option value="need_help">Topics I Need Help With</option>
               </select>
             </div>
           </div>
@@ -685,7 +685,7 @@ export const SkillMatrixView: React.FC = () => {
                                     )}
                                   </div>
 
-                                  {/* Seekers / Seeking Explanation (🔴 Who Asked For Help) */}
+                                  {/* Seekers / Seeking Explanation (Who Asked For Help) */}
                                   {sub.seekers.length > 0 && (
                                     <div style={{ marginTop: '8px' }}>
                                       <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#ef4444', display: 'block', marginBottom: '4px' }}>
@@ -736,7 +736,7 @@ export const SkillMatrixView: React.FC = () => {
                                       gap: '4px'
                                     }}
                                   >
-                                    <CheckCircle2 size={12} /> {iCanTeach ? 'I Teach This ✓' : 'I Can Explain 🙋‍♂️'}
+                                    <CheckCircle2 size={12} /> {iCanTeach ? 'I Teach This' : 'I Can Explain'}
                                   </button>
 
                                   <button
@@ -964,7 +964,7 @@ export const SkillMatrixView: React.FC = () => {
                     <img src={m.avatar} alt={m.name} style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid var(--accent-copper)', objectFit: 'cover' }} />
                     <div>
                       <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#eae6e1' }}>{m.name}</div>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{m.role.toUpperCase()} • {m.streak}🔥 Streak</span>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{m.role.toUpperCase()} • {m.streak} Day Streak</span>
                     </div>
                   </td>
 

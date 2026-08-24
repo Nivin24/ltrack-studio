@@ -185,7 +185,7 @@ export const VisualRoadmapView: React.FC = () => {
                       Phase {topic.phaseNumber}
                     </span>
                     <span className={`badge badge-${topic.status}`}>
-                      {topic.status === 'completed' ? '✓ Mastered' : topic.status === 'learning' ? 'In Progress' : 'Not Started'}
+                      {topic.status === 'completed' ? 'Mastered' : topic.status === 'learning' ? 'In Progress' : 'Not Started'}
                     </span>
                   </div>
 

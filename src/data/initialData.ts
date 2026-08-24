@@ -480,7 +480,7 @@ export const initialActivityFeed: ActivityItem[] = [
     userName: 'Rahul Sharma',
     userAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
     type: 'checkin',
-    detail: 'Completed Daily Check-In (60 mins, 4★ confidence)',
+    detail: 'Completed Daily Check-In (60 mins, 4/5 confidence)',
     timestamp: '5 hours ago'
   },
   {
@@ -489,7 +489,7 @@ export const initialActivityFeed: ActivityItem[] = [
     userName: 'Sarah Jenkins',
     userAvatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
     type: 'streak',
-    detail: 'Reached a 🔥 15-Day Learning Streak milestone!',
+    detail: 'Reached a 15-Day Learning Streak milestone!',
     timestamp: 'Yesterday'
   }
 ];
