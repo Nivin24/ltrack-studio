@@ -18,7 +18,9 @@ import {
   ArrowRight,
   ShieldCheck,
   RotateCcw,
-  Zap
+  Zap,
+  X,
+  SlidersHorizontal
 } from 'lucide-react';
 
 /**
@@ -90,6 +92,7 @@ export const KnowledgeGraphView: React.FC = () => {
   // Node Selection for Inspector Drawer
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>('py_basics');
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
 
   // Movable Node Positions state (persisted or defaults)
   const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>(() => {
@@ -110,9 +113,9 @@ export const KnowledgeGraphView: React.FC = () => {
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Pan & Zoom Viewport
-  const [zoomLevel, setZoomLevel] = useState<number>(0.85);
-  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 40, y: 40 });
+  // Pan & Zoom Viewport (Wide View by default)
+  const [zoomLevel, setZoomLevel] = useState<number>(0.58);
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 50, y: 60 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const graphContainerRef = useRef<HTMLDivElement>(null);
@@ -123,6 +126,12 @@ export const KnowledgeGraphView: React.FC = () => {
     if (!container) return;
 
     const handleWheel = (e: WheelEvent) => {
+      // If the wheel event occurs over the inspector drawer or control overlays, scroll the window normally and prevent graph zooming
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('.inspector-drawer, #inspector-drawer')) {
+        return;
+      }
+
       e.preventDefault();
 
       // Differentiate trackpad pinch (ctrlKey) vs standard scroll wheel
@@ -416,8 +425,8 @@ export const KnowledgeGraphView: React.FC = () => {
   };
 
   const handleCenterGraph = () => {
-    setZoomLevel(0.85);
-    setPanOffset({ x: 40, y: 40 });
+    setZoomLevel(0.56);
+    setPanOffset({ x: 50, y: 60 });
   };
 
   const handleResetPositions = () => {
@@ -543,6 +552,26 @@ export const KnowledgeGraphView: React.FC = () => {
             </button>
           </div>
 
+          {/* Toggle Inspector Button */}
+          <button
+            onClick={() => setIsInspectorOpen((prev) => !prev)}
+            style={{
+              padding: '7px 12px',
+              borderRadius: '10px',
+              border: isInspectorOpen ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
+              background: isInspectorOpen ? 'rgba(56, 189, 248, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+              color: isInspectorOpen ? '#38bdf8' : '#eae6e1',
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            <SlidersHorizontal size={13} /> {isInspectorOpen ? 'Hide Details' : 'Inspect Skill'}
+          </button>
+
           {/* Mastery Counter */}
           <div
             style={{
@@ -596,13 +625,14 @@ export const KnowledgeGraphView: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter & Canvas Work Area */}
-      <div style={{ display: 'flex', gap: '16px', flex: 1, minHeight: 0 }}>
-        {/* Main Interactive Graph Canvas Container */}
+      {/* Main Full-Width Graph Work Area */}
+      <div style={{ display: 'flex', flex: 1, minHeight: 0, position: 'relative' }}>
+        {/* Full Width Canvas Card */}
         <div
           className="glass-panel"
           style={{
             flex: 1,
+            width: '100%',
             borderRadius: '20px',
             position: 'relative',
             overflow: 'hidden',
@@ -878,7 +908,6 @@ export const KnowledgeGraphView: React.FC = () => {
                           fill="#0e0e14"
                           stroke={isPathHighlighted ? strokeColor : isFlowActive ? 'rgba(56, 189, 248, 0.4)' : 'rgba(255, 255, 255, 0.18)'}
                           strokeWidth="1.2"
-                          box-shadow="0 2px 8px rgba(0,0,0,0.8)"
                         />
                         <text
                           textAnchor="middle"
@@ -940,6 +969,10 @@ export const KnowledgeGraphView: React.FC = () => {
                     <g
                       key={node.id}
                       transform={`translate(${pos.x}, ${pos.y})`}
+                      onClick={() => {
+                        setSelectedNodeId(node.id);
+                        setIsInspectorOpen(true);
+                      }}
                       onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                       onMouseEnter={() => setHoveredNodeId(node.id)}
                       onMouseLeave={() => setHoveredNodeId(null)}
@@ -1095,7 +1128,7 @@ export const KnowledgeGraphView: React.FC = () => {
               </button>
               <button
                 onClick={handleCenterGraph}
-                title="Reset View"
+                title="Fit Overview to Screen"
                 style={{ background: 'transparent', border: 'none', color: '#eae6e1', cursor: 'pointer', padding: '4px 6px', display: 'flex' }}
               >
                 <Maximize2 size={15} />
@@ -1120,7 +1153,10 @@ export const KnowledgeGraphView: React.FC = () => {
             {/* Next Recommended Path Card Overlay */}
             {nextRecommendedNode && (
               <div
-                onClick={() => setSelectedNodeId(nextRecommendedNode.id)}
+                onClick={() => {
+                  setSelectedNodeId(nextRecommendedNode.id);
+                  setIsInspectorOpen(true);
+                }}
                 style={{
                   position: 'absolute',
                   top: '16px',
@@ -1164,229 +1200,264 @@ export const KnowledgeGraphView: React.FC = () => {
                 <ChevronRight size={14} color="#34d399" />
               </div>
             )}
-          </div>
-        </div>
 
-        {/* Slide-out Deep-Dive Node Inspector Drawer */}
-        <div
-          className="glass-panel"
-          style={{
-            width: '380px',
-            borderRadius: '20px',
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            background: 'rgba(20, 20, 28, 0.96)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            overflowY: 'auto',
-            flexShrink: 0
-          }}
-        >
-          {selectedNode ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Node Header */}
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span
-                    style={{
-                      fontSize: '0.68rem',
-                      fontWeight: 800,
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      background: domainClusters.find((d) => d.id === selectedNode.domain)?.secondaryColor,
-                      color: domainClusters.find((d) => d.id === selectedNode.domain)?.color,
-                      textTransform: 'uppercase'
-                    }}
-                  >
-                    Phase {selectedNode.phaseNumber} • {selectedNode.difficulty}
-                  </span>
-
-                  <span
-                    style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      color: getNodeStatus(selectedNode.id) === 'mastered' ? '#34d399' : getNodeStatus(selectedNode.id) === 'in_progress' ? '#38bdf8' : getNodeStatus(selectedNode.id) === 'unlocked' ? '#d4a373' : '#71717a',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px'
-                    }}
-                  >
-                    {getNodeStatus(selectedNode.id) === 'mastered' && <CheckCircle2 size={13} />}
-                    {getNodeStatus(selectedNode.id) === 'in_progress' && <Zap size={13} />}
-                    {getNodeStatus(selectedNode.id) === 'unlocked' && <Unlock size={13} />}
-                    {getNodeStatus(selectedNode.id) === 'locked' && <Lock size={13} />}
-                    {getNodeStatus(selectedNode.id).toUpperCase().replace('_', ' ')}
-                  </span>
-                </div>
-
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f5f5f7', margin: 0, lineHeight: 1.3 }}>
-                  {selectedNode.title}
-                </h2>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>
-                  {selectedNode.description}
-                </p>
-              </div>
-
-              {/* Action Buttons: Practice Quiz, Flashcards, Sandbox */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <button
-                  onClick={() => setActiveTab('quizzes')}
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 10px', fontSize: '0.74rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                >
-                  <HelpCircle size={13} color="#38bdf8" /> Concept Quiz
-                </button>
-                <button
-                  onClick={() => setActiveTab('flashcards')}
-                  className="btn btn-secondary"
-                  style={{ padding: '8px 10px', fontSize: '0.74rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
-                >
-                  <BookOpen size={13} color="#d4a373" /> Flashcards
-                </button>
-              </div>
-
-              {/* Toggle Mastery State Action */}
-              <button
-                onClick={() => handleToggleNodeMastery(selectedNode.id)}
+            {/* Slide-out Floating Deep-Dive Node Inspector Drawer */}
+            {isInspectorOpen && selectedNode && (
+              <div
+                id="inspector-drawer"
+                className="glass-panel inspector-drawer"
+                onWheel={(e) => {
+                  e.stopPropagation();
+                }}
                 style={{
-                  padding: '10px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  background: getNodeStatus(selectedNode.id) === 'mastered' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(52, 211, 153, 0.2)',
-                  color: getNodeStatus(selectedNode.id) === 'mastered' ? '#ef4444' : '#34d399',
-                  fontWeight: 700,
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
+                  position: 'absolute',
+                  top: '16px',
+                  right: '16px',
+                  bottom: '16px',
+                  width: '390px',
+                  borderRadius: '20px',
+                  padding: '22px',
                   display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  background: 'rgba(18, 18, 26, 0.97)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  boxShadow: '0 24px 60px rgba(0, 0, 0, 0.85)',
+                  backdropFilter: 'blur(24px)',
+                  overflowY: 'auto',
+                  overscrollBehavior: 'contain',
+                  zIndex: 30
                 }}
               >
-                {getNodeStatus(selectedNode.id) === 'mastered' ? (
-                  <>
-                    <RotateCcw size={14} /> Reopen for Review
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={14} /> Mark as Mastered & Propagate
-                  </>
-                )}
-              </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {/* Drawer Header with Close X */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          background: domainClusters.find((d) => d.id === selectedNode.domain)?.secondaryColor,
+                          color: domainClusters.find((d) => d.id === selectedNode.domain)?.color,
+                          textTransform: 'uppercase'
+                        }}
+                      >
+                        Phase {selectedNode.phaseNumber} • {selectedNode.difficulty}
+                      </span>
 
-              {/* Code Snippet Box */}
-              {selectedNode.codeSnippet && (
-                <div>
-                  <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                    Production Pattern:
-                  </span>
-                  <PythonCodePreview code={selectedNode.codeSnippet} />
-                </div>
-              )}
+                      <button
+                        onClick={() => setIsInspectorOpen(false)}
+                        title="Close Inspector"
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid rgba(255, 255, 255, 0.1)',
+                          borderRadius: '6px',
+                          color: '#eae6e1',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          display: 'flex'
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
 
-              {/* Subtopics Checklist */}
-              <div>
-                <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
-                  Core Subtopic Checkpoints ({selectedNode.subtopics.length}):
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {selectedNode.subtopics.map((sub, sIdx) => (
-                    <div
-                      key={sIdx}
-                      style={{
-                        padding: '6px 10px',
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        borderRadius: '6px',
-                        fontSize: '0.74rem',
-                        color: '#eae6e1',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          color:
+                            getNodeStatus(selectedNode.id) === 'mastered'
+                              ? '#34d399'
+                              : getNodeStatus(selectedNode.id) === 'in_progress'
+                              ? '#38bdf8'
+                              : getNodeStatus(selectedNode.id) === 'unlocked'
+                              ? '#d4a373'
+                              : '#71717a',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        {getNodeStatus(selectedNode.id) === 'mastered' && <CheckCircle2 size={13} />}
+                        {getNodeStatus(selectedNode.id) === 'in_progress' && <Zap size={13} />}
+                        {getNodeStatus(selectedNode.id) === 'unlocked' && <Unlock size={13} />}
+                        {getNodeStatus(selectedNode.id) === 'locked' && <Lock size={13} />}
+                        {getNodeStatus(selectedNode.id).toUpperCase().replace('_', ' ')}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)' }}>
+                        {selectedNode.estimatedHours}h estimated study
+                      </span>
+                    </div>
+
+                    <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f5f5f7', margin: 0, lineHeight: 1.3 }}>
+                      {selectedNode.title}
+                    </h2>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>
+                      {selectedNode.description}
+                    </p>
+                  </div>
+
+                  {/* Action Buttons: Practice Quiz, Flashcards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <button
+                      onClick={() => setActiveTab('quizzes')}
+                      className="btn btn-secondary"
+                      style={{ padding: '8px 10px', fontSize: '0.74rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                     >
-                      <CheckCircle2 size={12} color={getNodeStatus(selectedNode.id) === 'mastered' ? '#34d399' : 'rgba(255, 255, 255, 0.2)'} />
-                      <span>{sub}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                      <HelpCircle size={13} color="#38bdf8" /> Concept Quiz
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('flashcards')}
+                      className="btn btn-secondary"
+                      style={{ padding: '8px 10px', fontSize: '0.74rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                    >
+                      <BookOpen size={13} color="#d4a373" /> Flashcards
+                    </button>
+                  </div>
 
-              {/* Prerequisites & Unlocks Links */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                {/* Prerequisites */}
-                <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '10px', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                    Prerequisites:
-                  </span>
-                  {selectedNode.prerequisites.length === 0 ? (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>None (Root Topic)</span>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {selectedNode.prerequisites.map((pId) => {
-                        const pNode = initialKnowledgeNodes.find((n) => n.id === pId);
-                        const pDone = getNodeStatus(pId) === 'mastered';
-                        return (
-                          <div
-                            key={pId}
-                            onClick={() => setSelectedNodeId(pId)}
-                            style={{
-                              fontSize: '0.72rem',
-                              color: pDone ? '#34d399' : '#eae6e1',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            {pDone ? <CheckCircle2 size={11} color="#34d399" /> : <Lock size={11} color="#f87171" />}
-                            <span>{pNode?.title || pId}</span>
-                          </div>
-                        );
-                      })}
+                  {/* Toggle Mastery State Action */}
+                  <button
+                    onClick={() => handleToggleNodeMastery(selectedNode.id)}
+                    style={{
+                      padding: '10px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: getNodeStatus(selectedNode.id) === 'mastered' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(52, 211, 153, 0.2)',
+                      color: getNodeStatus(selectedNode.id) === 'mastered' ? '#ef4444' : '#34d399',
+                      fontWeight: 700,
+                      fontSize: '0.78rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    {getNodeStatus(selectedNode.id) === 'mastered' ? (
+                      <>
+                        <RotateCcw size={14} /> Reopen for Review
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={14} /> Mark as Mastered & Propagate
+                      </>
+                    )}
+                  </button>
+
+                  {/* Code Snippet Box */}
+                  {selectedNode.codeSnippet && (
+                    <div>
+                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                        Production Pattern:
+                      </span>
+                      <PythonCodePreview code={selectedNode.codeSnippet} />
                     </div>
                   )}
-                </div>
 
-                {/* Unlocks */}
-                <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '10px', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                    Unlocks Downstream:
-                  </span>
-                  {selectedNode.unlocks.length === 0 ? (
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Capstone Target</span>
-                  ) : (
+                  {/* Subtopics Checklist */}
+                  <div>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                      Core Subtopic Checkpoints ({selectedNode.subtopics.length}):
+                    </span>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {selectedNode.unlocks.map((uId) => {
-                        const uNode = initialKnowledgeNodes.find((n) => n.id === uId);
-                        return (
-                          <div
-                            key={uId}
-                            onClick={() => setSelectedNodeId(uId)}
-                            style={{
-                              fontSize: '0.72rem',
-                              color: '#38bdf8',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <ArrowRight size={11} />
-                            <span>{uNode?.title || uId}</span>
-                          </div>
-                        );
-                      })}
+                      {selectedNode.subtopics.map((sub, sIdx) => (
+                        <div
+                          key={sIdx}
+                          style={{
+                            padding: '6px 10px',
+                            background: 'rgba(0, 0, 0, 0.3)',
+                            borderRadius: '6px',
+                            fontSize: '0.74rem',
+                            color: '#eae6e1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <CheckCircle2 size={12} color={getNodeStatus(selectedNode.id) === 'mastered' ? '#34d399' : 'rgba(255, 255, 255, 0.2)'} />
+                          <span>{sub}</span>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+
+                  {/* Prerequisites & Unlocks Links */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {/* Prerequisites */}
+                    <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '10px', borderRadius: '8px' }}>
+                      <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#f87171', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                        Prerequisites:
+                      </span>
+                      {selectedNode.prerequisites.length === 0 ? (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>None (Root Topic)</span>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {selectedNode.prerequisites.map((pId) => {
+                            const pNode = initialKnowledgeNodes.find((n) => n.id === pId);
+                            const pDone = getNodeStatus(pId) === 'mastered';
+                            return (
+                              <div
+                                key={pId}
+                                onClick={() => setSelectedNodeId(pId)}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  color: pDone ? '#34d399' : '#eae6e1',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                {pDone ? <CheckCircle2 size={11} color="#34d399" /> : <Lock size={11} color="#f87171" />}
+                                <span>{pNode?.title || pId}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Unlocks */}
+                    <div style={{ background: 'rgba(0, 0, 0, 0.25)', padding: '10px', borderRadius: '8px' }}>
+                      <span style={{ fontSize: '0.66rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                        Unlocks Downstream:
+                      </span>
+                      {selectedNode.unlocks.length === 0 ? (
+                        <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)' }}>Capstone Target</span>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {selectedNode.unlocks.map((uId) => {
+                            const uNode = initialKnowledgeNodes.find((n) => n.id === uId);
+                            return (
+                              <div
+                                key={uId}
+                                onClick={() => setSelectedNodeId(uId)}
+                                style={{
+                                  fontSize: '0.72rem',
+                                  color: '#38bdf8',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <ArrowRight size={11} />
+                                <span>{uNode?.title || uId}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-dim)' }}>
-              Click any skill node on the canvas to inspect details.
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
