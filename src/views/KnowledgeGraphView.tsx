@@ -121,13 +121,18 @@ export const KnowledgeGraphView: React.FC = () => {
   const [startPan, setStartPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const graphContainerRef = useRef<HTMLDivElement>(null);
 
+  const zoomLevelRef = useRef(zoomLevel);
+  zoomLevelRef.current = zoomLevel;
+  const panOffsetRef = useRef(panOffset);
+  panOffsetRef.current = panOffset;
+
   // Smooth Wheel Zoom anchored to cursor position (strictly decoupled from inspector drawer)
   useEffect(() => {
     const container = graphContainerRef.current;
     if (!container) return;
 
     const handleWheel = (e: WheelEvent) => {
-      // If the cursor is currently over the inspector drawer or control overlays, NEVER zoom or pan the graph
+      // If the cursor is currently over the inspector drawer, NEVER zoom or pan the graph
       if (isHoveringInspectorRef.current) {
         return;
       }
@@ -140,27 +145,24 @@ export const KnowledgeGraphView: React.FC = () => {
       e.preventDefault();
 
       // Differentiate trackpad pinch (ctrlKey) vs standard scroll wheel
-      const zoomFactor = e.ctrlKey ? 0.015 : 0.0018;
+      const zoomFactor = e.ctrlKey ? 0.012 : 0.0015;
       const delta = -e.deltaY * zoomFactor;
 
-      setZoomLevel((prevZoom) => {
-        const newZoom = Math.min(Math.max(prevZoom + delta, 0.3), 2.5);
-        if (newZoom === prevZoom) return prevZoom;
+      const currentZoom = zoomLevelRef.current;
+      const newZoom = Math.min(Math.max(currentZoom + delta, 0.25), 2.5);
+      if (newZoom === currentZoom) return;
 
-        const rect = container.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+      const rect = container.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
 
-        setPanOffset((prevPan) => {
-          const scaleChange = newZoom / prevZoom;
-          return {
-            x: mouseX - (mouseX - prevPan.x) * scaleChange,
-            y: mouseY - (mouseY - prevPan.y) * scaleChange
-          };
-        });
+      const currentPan = panOffsetRef.current;
+      const scaleChange = newZoom / currentZoom;
+      const newPanX = mouseX - (mouseX - currentPan.x) * scaleChange;
+      const newPanY = mouseY - (mouseY - currentPan.y) * scaleChange;
 
-        return newZoom;
-      });
+      setZoomLevel(newZoom);
+      setPanOffset({ x: newPanX, y: newPanY });
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
@@ -337,6 +339,14 @@ export const KnowledgeGraphView: React.FC = () => {
       return true;
     });
   }, [selectedDomain, searchQuery]);
+
+  // Filtered Edges: Only show edges where BOTH source and target nodes are currently visible
+  const filteredEdges = useMemo(() => {
+    const visibleNodeIds = new Set(filteredNodes.map((n) => n.id));
+    return initialKnowledgeEdges.filter(
+      (edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
+    );
+  }, [filteredNodes]);
 
   // Overall Graph Stats
   const stats = useMemo(() => {
@@ -812,8 +822,8 @@ export const KnowledgeGraphView: React.FC = () => {
               </defs>
 
               <g transform={`translate(${panOffset.x}, ${panOffset.y}) scale(${zoomLevel})`}>
-                {/* 1. EDGES / CONNECTING PATHS WITH RELATIONSHIPS */}
-                {initialKnowledgeEdges.map((edge) => {
+                {/* 1. EDGES / CONNECTING PATHS WITH RELATIONSHIPS (FILTER-AWARE) */}
+                {filteredEdges.map((edge) => {
                   const sourceNode = initialKnowledgeNodes.find((n) => n.id === edge.source);
                   const targetNode = initialKnowledgeNodes.find((n) => n.id === edge.target);
                   if (!sourceNode || !targetNode) return null;
