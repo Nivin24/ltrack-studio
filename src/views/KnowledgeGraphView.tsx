@@ -89,6 +89,7 @@ export const KnowledgeGraphView: React.FC = () => {
 
   // Node Selection for Inspector Drawer
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>('py_basics');
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
   // Pan & Zoom Viewport
   const [zoomLevel, setZoomLevel] = useState<number>(0.85);
@@ -96,6 +97,44 @@ export const KnowledgeGraphView: React.FC = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const graphContainerRef = useRef<HTMLDivElement>(null);
+
+  // Smooth Wheel Zoom anchored to cursor position
+  useEffect(() => {
+    const container = graphContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+
+      // Differentiate trackpad pinch (ctrlKey) vs standard scroll wheel
+      const zoomFactor = e.ctrlKey ? 0.015 : 0.0018;
+      const delta = -e.deltaY * zoomFactor;
+
+      setZoomLevel((prevZoom) => {
+        const newZoom = Math.min(Math.max(prevZoom + delta, 0.3), 2.5);
+        if (newZoom === prevZoom) return prevZoom;
+
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        setPanOffset((prevPan) => {
+          const scaleChange = newZoom / prevZoom;
+          return {
+            x: mouseX - (mouseX - prevPan.x) * scaleChange,
+            y: mouseY - (mouseY - prevPan.y) * scaleChange
+          };
+        });
+
+        return newZoom;
+      });
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
 
   // User Independent Mastery State (keyed per user in localStorage)
   const [userMasteryMap, setUserMasteryMap] = useState<Record<string, NodeStatus>>(() => {
@@ -647,7 +686,11 @@ export const KnowledgeGraphView: React.FC = () => {
                   const srcStatus = getNodeStatus(edge.source);
                   const tgtStatus = getNodeStatus(edge.target);
                   const isFlowActive = srcStatus === 'mastered';
-                  const isPathHighlighted = selectedNodeId === edge.source || selectedNodeId === edge.target;
+                  const isPathHighlighted =
+                    selectedNodeId === edge.source ||
+                    selectedNodeId === edge.target ||
+                    hoveredNodeId === edge.source ||
+                    hoveredNodeId === edge.target;
 
                   let strokeColor = 'rgba(255, 255, 255, 0.12)';
                   if (srcStatus === 'mastered' && tgtStatus === 'mastered') {
@@ -655,23 +698,23 @@ export const KnowledgeGraphView: React.FC = () => {
                   } else if (isFlowActive) {
                     strokeColor = '#38bdf8';
                   } else if (isPathHighlighted) {
-                    strokeColor = '#d4a373';
+                    strokeColor = hoveredNodeId ? '#38bdf8' : '#d4a373';
                   }
 
                   return (
-                    <g key={edge.id}>
+                    <g key={edge.id} style={{ transition: 'all 0.2s ease' }}>
                       <path
                         d={pathData}
                         fill="none"
                         stroke={strokeColor}
-                        strokeWidth={isPathHighlighted ? 2.5 : isFlowActive ? 1.8 : 1.2}
+                        strokeWidth={isPathHighlighted ? 2.8 : isFlowActive ? 1.8 : 1.2}
                         strokeDasharray={edge.relationship === 'composes' ? '4 4' : undefined}
-                        opacity={isPathHighlighted ? 1 : 0.65}
+                        opacity={isPathHighlighted ? 1 : hoveredNodeId ? 0.3 : 0.65}
                       />
                       {/* Animated Pulse Particle on Active Flows */}
                       {isFlowActive && (
-                        <circle r="3" fill="#38bdf8">
-                          <animateMotion path={pathData} dur="3.5s" repeatCount="indefinite" />
+                        <circle r={isPathHighlighted ? 3.8 : 2.8} fill={isPathHighlighted ? '#34d399' : '#38bdf8'}>
+                          <animateMotion path={pathData} dur="3.2s" repeatCount="indefinite" />
                         </circle>
                       )}
                     </g>
@@ -682,6 +725,7 @@ export const KnowledgeGraphView: React.FC = () => {
                 {filteredNodes.map((node) => {
                   const status = getNodeStatus(node.id);
                   const isSelected = selectedNodeId === node.id;
+                  const isHovered = hoveredNodeId === node.id;
                   const isRecommended = nextRecommendedNode?.id === node.id;
                   const domainInfo = domainClusters.find((d) => d.id === node.domain);
                   const nodeColor = domainInfo?.color || '#d4a373';
@@ -712,8 +756,8 @@ export const KnowledgeGraphView: React.FC = () => {
                     statusTextColor = '#d4a373';
                   }
 
-                  if (isSelected) {
-                    statusBorder = '#ffffff';
+                  if (isSelected || isHovered) {
+                    statusBorder = isHovered ? nodeColor : '#ffffff';
                   }
 
                   return (
@@ -721,10 +765,15 @@ export const KnowledgeGraphView: React.FC = () => {
                       key={node.id}
                       transform={`translate(${node.x || 0}, ${node.y || 0})`}
                       onClick={() => setSelectedNodeId(node.id)}
-                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={() => setHoveredNodeId(node.id)}
+                      onMouseLeave={() => setHoveredNodeId(null)}
+                      style={{
+                        cursor: 'pointer',
+                        transition: 'transform 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                      }}
                     >
                       {/* Selection / Recommendation Glow Aura */}
-                      {(isSelected || isRecommended) && (
+                      {(isSelected || isHovered || isRecommended) && (
                         <rect
                           x="-4"
                           y="-4"
@@ -732,10 +781,10 @@ export const KnowledgeGraphView: React.FC = () => {
                           height="88"
                           rx="14"
                           fill="none"
-                          stroke={isRecommended ? '#34d399' : '#d4a373'}
-                          strokeWidth="2"
+                          stroke={isRecommended ? '#34d399' : isHovered ? nodeColor : '#d4a373'}
+                          strokeWidth={isHovered ? 2.5 : 2}
                           strokeDasharray={isRecommended ? '4 4' : undefined}
-                          opacity="0.8"
+                          opacity={isHovered ? 0.95 : 0.8}
                         >
                           {isRecommended && (
                             <animate attributeName="opacity" values="0.4;0.9;0.4" dur="2s" repeatCount="indefinite" />
