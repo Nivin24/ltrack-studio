@@ -388,89 +388,44 @@ select.form-control option {
 }
 
 /* ========================================================= */
-/* Apple Music Live Lyrics Animation for Flashcards & Prompts */
+/* Question Text Wave Shimmer Animation (No Background Glow) */
 /* ========================================================= */
 
-@keyframes appleLyricsGlow {
+@keyframes questionTextWave {
   0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
+    background-position: 150% 0;
   }
   100% {
-    background-position: 0% 50%;
-  }
-}
-
-@keyframes appleLyricsPulse {
-  0% {
-    filter: drop-shadow(0 0 10px rgba(212, 163, 115, 0.35)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.2));
-  }
-  50% {
-    filter: drop-shadow(0 0 18px rgba(56, 189, 248, 0.45)) drop-shadow(0 0 30px rgba(212, 163, 115, 0.3));
-  }
-  100% {
-    filter: drop-shadow(0 0 10px rgba(212, 163, 115, 0.35)) drop-shadow(0 0 20px rgba(255, 255, 255, 0.2));
+    background-position: -150% 0;
   }
 }
 
 .apple-lyrics-text {
-  position: relative;
   display: inline-block;
-  color: #eae6e1;
-  transition: all 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: transform, filter, background-position;
+  color: #f5f5f7;
+  line-height: 1.5;
+  transition: all 0.25s ease;
+  word-break: break-word;
 }
 
-/* In non-hover state inside the card: soft clarity */
-.flashcard-interactive-card .apple-lyrics-text {
-  color: rgba(245, 245, 247, 0.92);
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  transform-origin: left center;
-}
-
-/* On hover over the statement or the card: signature Apple Music Lyrics Kinetic Glow */
+/* Fluid Wave Shimmer on Question Hover (No background glow) */
 .flashcard-interactive-card:hover .apple-lyrics-text,
 .apple-lyrics-text:hover {
   background: linear-gradient(
     90deg,
-    #ffffff 0%,
-    #d4a373 25%,
-    #ffffff 50%,
-    #38bdf8 75%,
-    #ffffff 100%
+    #eae6e1 0%,
+    #eae6e1 25%,
+    #ffffff 40%,
+    #d4a373 50%,
+    #38bdf8 60%,
+    #ffffff 75%,
+    #eae6e1 100%
   );
-  background-size: 250% auto;
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: appleLyricsGlow 3s ease infinite, appleLyricsPulse 2.2s ease-in-out infinite;
-  transform: scale(1.018) translateY(-1px);
+  animation: questionTextWave 2.8s linear infinite;
   cursor: pointer;
-  letter-spacing: -0.015em;
-}
-
-/* Card Glow Ambience */
-.flashcard-interactive-card {
-  position: relative;
-  overflow: hidden;
-}
-
-.flashcard-interactive-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at center, rgba(212, 163, 115, 0.08) 0%, transparent 60%);
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  pointer-events: none;
-}
-
-.flashcard-interactive-card:hover::before {
-  opacity: 1;
 }
 
 /* ========================================================= */
@@ -488,7 +443,7 @@ select.form-control option {
   width: 100%;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
-  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
 }
 
@@ -506,6 +461,7 @@ select.form-control option {
   display: flex;
   flex-direction: column;
   justifyContent: space-between;
+  box-sizing: border-box;
 }
 
 .flashcard-face-front {
@@ -525,5 +481,6 @@ select.form-control option {
   transform: rotateY(180deg);
   -webkit-transform: rotateY(180deg);
 }
+
 
 

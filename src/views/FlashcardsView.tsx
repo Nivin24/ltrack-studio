@@ -459,69 +459,72 @@ export const FlashcardsView: React.FC = () => {
                 : 'No flashcards match the selected filter. Try selecting "All Main Topics".'}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '20px' }}>
               {paginatedCards.map((card) => {
                 const isFlipped = Boolean(gridFlippedMap[card.id]);
                 const isMastered = Boolean(masteredCards[card.id]);
 
                 return (
-                  <div key={card.id} className="flashcard-3d-perspective" style={{ minHeight: '310px' }}>
+                  <div key={card.id} className="flashcard-3d-perspective" style={{ height: '370px' }}>
                     <div
                       onClick={() => handleToggleCardFlip(card.id)}
                       className={`flashcard-3d-wrapper ${isFlipped ? 'is-flipped' : ''}`}
-                      style={{ minHeight: '310px', height: '100%', cursor: 'pointer' }}
+                      style={{ height: '100%', cursor: 'pointer' }}
                     >
                       {/* 1. FRONT FACE (QUESTION & PROMPT) */}
                       <div
                         className="glass-panel flashcard-face flashcard-face-front flashcard-interactive-card"
                         style={{
-                          padding: '20px',
-                          background: 'rgba(20, 20, 26, 0.92)',
+                          padding: '20px 22px',
+                          background: 'rgba(20, 20, 26, 0.95)',
                           border: isMastered ? '1px solid rgba(52, 211, 153, 0.35)' : '1px solid rgba(212, 163, 115, 0.22)',
                           borderRadius: '18px',
-                          minHeight: '310px',
-                          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.4)'
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)'
                         }}
                       >
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d4a373', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Phase {card.phaseNumber} • {card.category} {card.subtopicName ? `(${card.subtopicName})` : ''}
-                            </span>
+                        {/* Front Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d4a373', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Phase {card.phaseNumber} • {card.category} {card.subtopicName ? `(${card.subtopicName})` : ''}
+                          </span>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              {isMastered && (
-                                <span style={{ fontSize: '0.65rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                  <Check size={10} /> Mastered
-                                </span>
-                              )}
-                              <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                <RotateCw size={11} /> Question
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {isMastered && (
+                              <span style={{ fontSize: '0.65rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                <Check size={10} /> Mastered
                               </span>
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <h3 className="apple-lyrics-text" style={{ fontSize: '0.98rem', fontWeight: 800, lineHeight: 1.4, margin: 0 }}>
-                              {card.prompt}
-                            </h3>
-
-                            {card.codeSnippet && (
-                              <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px', fontFamily: 'monospace', fontSize: '0.74rem', color: '#38bdf8', lineHeight: 1.4, maxHeight: '90px', overflow: 'hidden' }}>
-                                <pre style={{ margin: 0 }}>{card.codeSnippet}</pre>
-                              </div>
                             )}
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <RotateCw size={11} /> Question
+                            </span>
                           </div>
                         </div>
 
-                        {/* Front Bottom Bar */}
+                        {/* Front Body with Auto Scroll if long */}
+                        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <h3 className="apple-lyrics-text" style={{ fontSize: '0.98rem', fontWeight: 800, lineHeight: 1.45, margin: 0 }}>
+                            {card.prompt}
+                          </h3>
+
+                          {card.codeSnippet && (
+                            <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '10px', padding: '10px 12px', fontFamily: 'monospace', fontSize: '0.74rem', color: '#38bdf8', lineHeight: 1.45, overflowX: 'auto', overflowY: 'auto', maxHeight: '120px' }}>
+                              <pre style={{ margin: 0 }}>{card.codeSnippet}</pre>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Front Bottom Action Bar */}
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}
+                          style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}
                         >
                           <button
                             onClick={() => handleToggleCardFlip(card.id)}
-                            style={{ background: 'transparent', border: 'none', color: '#d4a373', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
+                            style={{ background: 'transparent', border: 'none', color: '#d4a373', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
                           >
                             <RotateCw size={11} /> Flip for Answer
                           </button>
@@ -531,7 +534,7 @@ export const FlashcardsView: React.FC = () => {
                               onClick={() => handleToggleMastered(card.id, false)}
                               title="Mark for revision"
                               style={{
-                                padding: '4px 8px',
+                                padding: '5px 9px',
                                 borderRadius: '6px',
                                 background: !isMastered ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.04)',
                                 border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -547,7 +550,7 @@ export const FlashcardsView: React.FC = () => {
                               onClick={() => handleToggleMastered(card.id, true)}
                               title="Mark as mastered"
                               style={{
-                                padding: '4px 10px',
+                                padding: '5px 11px',
                                 borderRadius: '6px',
                                 background: isMastered ? 'rgba(52, 211, 153, 0.2)' : 'rgba(255, 255, 255, 0.04)',
                                 border: '1px solid rgba(52, 211, 153, 0.3)',
@@ -570,54 +573,57 @@ export const FlashcardsView: React.FC = () => {
                       <div
                         className="glass-panel flashcard-face flashcard-face-back flashcard-interactive-card"
                         style={{
-                          padding: '20px',
+                          padding: '20px 22px',
                           background: 'rgba(24, 24, 34, 0.96)',
                           border: '1px solid rgba(56, 189, 248, 0.35)',
                           borderRadius: '18px',
-                          minHeight: '310px',
-                          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.45)'
+                          height: '100%',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)'
                         }}
                       >
-                        <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                            <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Core Answer & Breakdown
+                        {/* Back Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexShrink: 0 }}>
+                          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Core Answer & Breakdown
+                          </span>
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <RotateCw size={11} /> Answer
+                          </span>
+                        </div>
+
+                        {/* Back Body with Auto Scroll if long */}
+                        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div>
+                            <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
+                              Core Answer:
                             </span>
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                              <RotateCw size={11} /> Reverse
-                            </span>
+                            <p className="apple-lyrics-text" style={{ fontSize: '0.88rem', fontWeight: 700, lineHeight: 1.45, margin: 0 }}>
+                              {card.answer}
+                            </p>
                           </div>
 
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <div>
-                              <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
-                                Core Answer:
-                              </span>
-                              <p className="apple-lyrics-text" style={{ fontSize: '0.88rem', fontWeight: 700, lineHeight: 1.4, margin: 0 }}>
-                                {card.answer}
-                              </p>
-                            </div>
+                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '9px 11px', borderRadius: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.45 }}>
+                            <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Deep Explanation:</strong>
+                            {card.explanation}
+                          </div>
 
-                            <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 10px', borderRadius: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                              <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Deep Explanation:</strong>
-                              {card.explanation}
-                            </div>
-
-                            <div style={{ background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '8px 10px', borderRadius: '8px', fontSize: '0.72rem', color: '#eae6e1' }}>
-                              <strong style={{ color: '#34d399', display: 'block', marginBottom: '1px' }}>Key Takeaway:</strong>
-                              {card.keyTakeaway}
-                            </div>
+                          <div style={{ background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '8px 10px', borderRadius: '8px', fontSize: '0.72rem', color: '#eae6e1', lineHeight: 1.4 }}>
+                            <strong style={{ color: '#34d399', display: 'block', marginBottom: '1px' }}>Key Takeaway:</strong>
+                            {card.keyTakeaway}
                           </div>
                         </div>
 
-                        {/* Back Bottom Bar */}
+                        {/* Back Bottom Action Bar */}
                         <div
                           onClick={(e) => e.stopPropagation()}
-                          style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}
+                          style={{ borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '12px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}
                         >
                           <button
                             onClick={() => handleToggleCardFlip(card.id)}
-                            style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
+                            style={{ background: 'transparent', border: 'none', color: '#38bdf8', fontSize: '0.74rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
                           >
                             <RotateCw size={11} /> Back to Question
                           </button>
@@ -627,7 +633,7 @@ export const FlashcardsView: React.FC = () => {
                               onClick={() => handleToggleMastered(card.id, false)}
                               title="Mark for revision"
                               style={{
-                                padding: '4px 8px',
+                                padding: '5px 9px',
                                 borderRadius: '6px',
                                 background: !isMastered ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.04)',
                                 border: '1px solid rgba(239, 68, 68, 0.25)',
@@ -643,7 +649,7 @@ export const FlashcardsView: React.FC = () => {
                               onClick={() => handleToggleMastered(card.id, true)}
                               title="Mark as mastered"
                               style={{
-                                padding: '4px 10px',
+                                padding: '5px 11px',
                                 borderRadius: '6px',
                                 background: isMastered ? 'rgba(52, 211, 153, 0.2)' : 'rgba(255, 255, 255, 0.04)',
                                 border: '1px solid rgba(52, 211, 153, 0.3)',
@@ -719,8 +725,8 @@ export const FlashcardsView: React.FC = () => {
             className="flashcard-3d-perspective"
             style={{
               width: '100%',
-              maxWidth: '780px',
-              minHeight: '360px',
+              maxWidth: '820px',
+              minHeight: '390px',
               cursor: 'pointer'
             }}
           >
@@ -728,7 +734,7 @@ export const FlashcardsView: React.FC = () => {
               className={`flashcard-3d-wrapper ${isFocusFlipped ? 'is-flipped' : ''}`}
               style={{
                 width: '100%',
-                minHeight: '360px',
+                minHeight: '390px',
                 height: '100%'
               }}
             >
@@ -736,36 +742,39 @@ export const FlashcardsView: React.FC = () => {
               <div
                 className="glass-panel flashcard-face flashcard-face-front flashcard-interactive-card"
                 style={{
-                  padding: '32px 36px',
-                  background: 'rgba(20, 20, 26, 0.94)',
+                  padding: '30px 34px',
+                  background: 'rgba(20, 20, 26, 0.95)',
                   border: masteredCards[currentFocusCard.id] ? '1px solid rgba(52, 211, 153, 0.35)' : '1px solid rgba(212, 163, 115, 0.3)',
                   borderRadius: '24px',
-                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.55)',
-                  minHeight: '360px'
+                  boxShadow: '0 16px 40px rgba(0, 0, 0, 0.5)',
+                  minHeight: '390px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
                 }}
               >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <span className="badge badge-completed" style={{ fontSize: '0.7rem' }}>
-                      FRONT SIDE (CONCEPT QUESTION)
-                    </span>
+                {/* Focus Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexShrink: 0 }}>
+                  <span className="badge badge-completed" style={{ fontSize: '0.7rem' }}>
+                    FRONT SIDE (CONCEPT QUESTION)
+                  </span>
 
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <RotateCw size={12} /> Click anywhere to flip
-                    </span>
-                  </div>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <RotateCw size={12} /> Click anywhere to flip
+                  </span>
+                </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <h2 className="apple-lyrics-text" style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1.4, margin: 0 }}>
-                      {currentFocusCard.prompt}
-                    </h2>
+                {/* Focus Front Body with Auto Scroll if long */}
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '6px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <h2 className="apple-lyrics-text" style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1.45, margin: 0 }}>
+                    {currentFocusCard.prompt}
+                  </h2>
 
-                    {currentFocusCard.codeSnippet && (
-                      <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px', fontFamily: 'monospace', fontSize: '0.82rem', color: '#38bdf8', lineHeight: 1.5, overflowX: 'auto' }}>
-                        <pre style={{ margin: 0 }}>{currentFocusCard.codeSnippet}</pre>
-                      </div>
-                    )}
-                  </div>
+                  {currentFocusCard.codeSnippet && (
+                    <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px', fontFamily: 'monospace', fontSize: '0.82rem', color: '#38bdf8', lineHeight: 1.5, overflowX: 'auto', maxHeight: '180px' }}>
+                      <pre style={{ margin: 0 }}>{currentFocusCard.codeSnippet}</pre>
+                    </div>
+                  )}
                 </div>
 
                 {/* Bottom Navigation & Mastery Buttons */}
@@ -779,7 +788,8 @@ export const FlashcardsView: React.FC = () => {
                     alignItems: 'center',
                     flexWrap: 'wrap',
                     gap: '12px',
-                    marginTop: '16px'
+                    marginTop: '16px',
+                    flexShrink: 0
                   }}
                 >
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -859,44 +869,47 @@ export const FlashcardsView: React.FC = () => {
               <div
                 className="glass-panel flashcard-face flashcard-face-back flashcard-interactive-card"
                 style={{
-                  padding: '32px 36px',
+                  padding: '30px 34px',
                   background: 'rgba(25, 25, 36, 0.96)',
                   border: '1px solid rgba(56, 189, 248, 0.38)',
                   borderRadius: '24px',
-                  boxShadow: '0 20px 50px rgba(0, 0, 0, 0.6)',
-                  minHeight: '360px'
+                  boxShadow: '0 16px 40px rgba(0, 0, 0, 0.55)',
+                  minHeight: '390px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between'
                 }}
               >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                    <span className="badge badge-learning" style={{ fontSize: '0.7rem' }}>
-                      REVERSE SIDE (ANSWER & EXPLANATION)
-                    </span>
+                {/* Focus Back Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexShrink: 0 }}>
+                  <span className="badge badge-learning" style={{ fontSize: '0.7rem' }}>
+                    REVERSE SIDE (ANSWER & EXPLANATION)
+                  </span>
 
-                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <RotateCw size={12} /> Click anywhere to flip
+                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <RotateCw size={12} /> Click anywhere to flip
+                  </span>
+                </div>
+
+                {/* Focus Back Body with Auto Scroll if long */}
+                <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '6px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                      Core Answer:
                     </span>
+                    <p className="apple-lyrics-text" style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.45, margin: 0 }}>
+                      {currentFocusCard.answer}
+                    </p>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div>
-                      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                        Core Answer:
-                      </span>
-                      <p className="apple-lyrics-text" style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.4, margin: 0 }}>
-                        {currentFocusCard.answer}
-                      </p>
-                    </div>
+                  <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px 14px', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Deep Explanation:</strong>
+                    {currentFocusCard.explanation}
+                  </div>
 
-                    <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px 14px', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                      <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Deep Explanation:</strong>
-                      {currentFocusCard.explanation}
-                    </div>
-
-                    <div style={{ background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#eae6e1' }}>
-                      <strong style={{ color: '#34d399', display: 'block', marginBottom: '2px' }}>Key Takeaway:</strong>
-                      {currentFocusCard.keyTakeaway}
-                    </div>
+                  <div style={{ background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#eae6e1' }}>
+                    <strong style={{ color: '#34d399', display: 'block', marginBottom: '2px' }}>Key Takeaway:</strong>
+                    {currentFocusCard.keyTakeaway}
                   </div>
                 </div>
 
@@ -911,7 +924,8 @@ export const FlashcardsView: React.FC = () => {
                     alignItems: 'center',
                     flexWrap: 'wrap',
                     gap: '12px',
-                    marginTop: '16px'
+                    marginTop: '16px',
+                    flexShrink: 0
                   }}
                 >
                   <div style={{ display: 'flex', gap: '8px' }}>
