@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { initialChallenges, initialQuizzes } from '../data/sandboxData';
 import type { CodingChallenge, QuizQuestion } from '../types/sandbox';
 import { useLTrack } from '../context/LTrackContext';
@@ -26,6 +26,45 @@ export const CodeSandboxView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'challenges' | 'quizzes' | 'free_editor'>('free_editor');
   const [selectedChallenge, setSelectedChallenge] = useState<CodingChallenge>(initialChallenges[0]);
   const [userCode, setUserCode] = useState<string>(initialChallenges[0].initialCode);
+
+  // Draggable Split Pane Ratio (defaults to 48%, stored in localStorage)
+  const [splitRatio, setSplitRatio] = useState<number>(() => {
+    const saved = localStorage.getItem('ltrack_sandbox_split_ratio');
+    return saved ? Number(saved) : 48;
+  });
+  const [isDragging, setIsDragging] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+      const newRatio = ((e.clientX - rect.left) / rect.width) * 100;
+      // Bound between 24% and 76%
+      const bounded = Math.min(Math.max(newRatio, 24), 76);
+      setSplitRatio(bounded);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      localStorage.setItem('ltrack_sandbox_split_ratio', String(splitRatio));
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, splitRatio]);
 
   // Scratchpad State
   const defaultScratchpadCode = `# Free Python & Async Scratchpad
@@ -299,9 +338,33 @@ asyncio.run(main())`;
 
       {/* TAB 1: CODING CHALLENGES STUDIO */}
       {activeTab === 'challenges' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1.3fr', gap: '16px', flex: 1, minHeight: 0, alignItems: 'stretch' }}>
+        <div
+          ref={containerRef}
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 0,
+            flex: 1,
+            minHeight: 0,
+            width: '100%',
+            alignItems: 'stretch',
+            userSelect: isDragging ? 'none' : 'auto'
+          }}
+        >
           {/* Left Column: Challenge Selector, Specs & Test Cases */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', height: '100%', minHeight: 0, overflowY: 'auto' }}>
+          <div
+            style={{
+              width: `calc(${splitRatio}% - 6px)`,
+              flexShrink: 0,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              height: '100%',
+              minHeight: 0,
+              overflowY: 'auto'
+            }}
+          >
             {/* Challenge Dropdown Selector */}
             <div className="glass-panel" style={{ padding: '14px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', flexShrink: 0 }}>
               <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
@@ -386,8 +449,47 @@ asyncio.run(main())`;
             </div>
           </div>
 
+          {/* Draggable Divider with Hover Glow & Reset Hint */}
+          <div
+            onMouseDown={handleMouseDown}
+            onDoubleClick={() => setSplitRatio(50)}
+            style={{
+              width: '12px',
+              cursor: 'col-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              userSelect: 'none',
+              flexShrink: 0,
+              zIndex: 10
+            }}
+            title="Drag to resize panes • Double click to center (50/50)"
+          >
+            <div
+              style={{
+                width: isDragging ? '4px' : '2px',
+                height: '70px',
+                borderRadius: '4px',
+                background: isDragging ? '#d4a373' : 'rgba(212, 163, 115, 0.35)',
+                boxShadow: isDragging ? '0 0 10px rgba(212, 163, 115, 0.8)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            />
+          </div>
+
           {/* Right Column: Highlighted Code Editor & Live Test Runner Terminal */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', height: '100%', minHeight: 0 }}>
+          <div
+            style={{
+              width: `calc(${100 - splitRatio}% - 6px)`,
+              flexShrink: 0,
+              minWidth: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+              height: '100%',
+              minHeight: 0
+            }}
+          >
             {/* Syntax Highlighted Code Editor Box */}
             <div className="glass-panel" style={{ background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1.2, minHeight: 0 }}>
               {/* Editor Header Bar */}
@@ -640,28 +742,39 @@ asyncio.run(main())`;
         </div>
       )}
 
-      {/* TAB 3: FREE SCRATCHPAD (Full Height to Bottom Alignment) */}
+      {/* TAB 3: FREE SCRATCHPAD (Full Height with Draggable Split) */}
       {activeTab === 'free_editor' && (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1.2fr 1fr',
-          gap: '16px',
-          flex: 1,
-          minHeight: 0,
-          height: '100%',
-          alignItems: 'stretch'
-        }}>
-          {/* Left Column: Code Editor */}
-          <div className="glass-panel" style={{
-            background: 'rgba(20, 20, 26, 0.85)',
-            border: '1px solid rgba(212, 163, 115, 0.16)',
-            borderRadius: '16px',
+        <div
+          ref={containerRef}
+          style={{
             display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
+            flexDirection: 'row',
+            gap: 0,
+            flex: 1,
+            minHeight: 0,
             height: '100%',
-            minHeight: 0
-          }}>
+            width: '100%',
+            alignItems: 'stretch',
+            userSelect: isDragging ? 'none' : 'auto'
+          }}
+        >
+          {/* Left Column: Code Editor */}
+          <div
+            className="glass-panel"
+            style={{
+              width: `calc(${splitRatio}% - 6px)`,
+              flexShrink: 0,
+              minWidth: 0,
+              background: 'rgba(20, 20, 26, 0.85)',
+              border: '1px solid rgba(212, 163, 115, 0.16)',
+              borderRadius: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              height: '100%',
+              minHeight: 0
+            }}
+          >
             {/* Editor Header Bar */}
             <div style={{
               padding: '12px 20px',
@@ -742,18 +855,52 @@ asyncio.run(main())`;
             </div>
           </div>
 
+          {/* Draggable Divider with Hover Glow & Reset Hint */}
+          <div
+            onMouseDown={handleMouseDown}
+            onDoubleClick={() => setSplitRatio(50)}
+            style={{
+              width: '12px',
+              cursor: 'col-resize',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              userSelect: 'none',
+              flexShrink: 0,
+              zIndex: 10
+            }}
+            title="Drag to resize panes • Double click to center (50/50)"
+          >
+            <div
+              style={{
+                width: isDragging ? '4px' : '2px',
+                height: '70px',
+                borderRadius: '4px',
+                background: isDragging ? '#d4a373' : 'rgba(212, 163, 115, 0.35)',
+                boxShadow: isDragging ? '0 0 10px rgba(212, 163, 115, 0.8)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            />
+          </div>
+
           {/* Right Column: Interactive Output Console Terminal */}
-          <div className="glass-panel" style={{
-            background: 'rgba(20, 20, 26, 0.85)',
-            border: '1px solid rgba(212, 163, 115, 0.16)',
-            borderRadius: '16px',
-            padding: '16px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '12px',
-            height: '100%',
-            minHeight: 0
-          }}>
+          <div
+            className="glass-panel"
+            style={{
+              width: `calc(${100 - splitRatio}% - 6px)`,
+              flexShrink: 0,
+              minWidth: 0,
+              background: 'rgba(20, 20, 26, 0.85)',
+              border: '1px solid rgba(212, 163, 115, 0.16)',
+              borderRadius: '16px',
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              height: '100%',
+              minHeight: 0
+            }}
+          >
             {/* Terminal Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
