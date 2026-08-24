@@ -18,6 +18,8 @@ import { SkillMatrixView } from './views/SkillMatrixView';
 import { EvidenceProgressView } from './views/EvidenceProgressView';
 import { ProfileView } from './views/ProfileView';
 import { SettingsView } from './views/SettingsView';
+import { QuizStudioView } from './views/QuizStudioView';
+import { FlashcardsView } from './views/FlashcardsView';
 
 const MainContent: React.FC = () => {
   const { isAuthenticated, activeTab, currentUser } = useLTrack();
@@ -37,6 +39,10 @@ const MainContent: React.FC = () => {
         return <VisualRoadmapView />;
       case 'daily_learning':
         return <DailyLearningView />;
+      case 'quizzes':
+        return <QuizStudioView />;
+      case 'flashcards':
+        return <FlashcardsView />;
       case 'code_sandbox':
         return <CodeSandboxView />;
       case 'pairing_studio':

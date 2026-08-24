@@ -1,0 +1,811 @@
+import React, { useState, useMemo } from 'react';
+import { initialFlashcards } from '../data/sandboxData';
+import type { Flashcard, QuizAttemptRecord } from '../types/sandbox';
+import { useLTrack } from '../context/LTrackContext';
+import {
+  Layers,
+  RotateCw,
+  CheckCircle2,
+  AlertCircle,
+  Search,
+  Shuffle,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  Award,
+  Check,
+  RotateCcw,
+  LayoutGrid,
+  Maximize2
+} from 'lucide-react';
+
+export const FlashcardsView: React.FC = () => {
+  const { currentUser } = useLTrack();
+
+  const [selectedDomain, setSelectedDomain] = useState<string>('all');
+  const [selectedSubtopic, setSelectedSubtopic] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deckMode, setDeckMode] = useState<'curated' | 'failed_quiz'>('curated');
+  const [viewLayout, setViewLayout] = useState<'grid' | 'focus'>('grid');
+
+  // Pagination State (10, 20, 30, All)
+  const [pageSize, setPageSize] = useState<number | 'all'>(10);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Focus Study Card Index
+  const [focusCardIndex, setFocusCardIndex] = useState(0);
+  const [isFocusFlipped, setIsFocusFlipped] = useState(false);
+
+  // Grid Flipped Cards Map: Record<cardId, boolean>
+  const [gridFlippedMap, setGridFlippedMap] = useState<Record<string, boolean>>({});
+
+  // Mastered Card IDs (stored in localStorage)
+  const [masteredCards, setMasteredCards] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem(`ltrack_flashcards_mastered_${currentUser.id}`);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Load private quiz history to generate dynamic failed questions deck
+  const failedQuizFlashcards: Flashcard[] = useMemo(() => {
+    try {
+      const saved = localStorage.getItem(`ltrack_private_quiz_history_${currentUser.id}`);
+      const history: QuizAttemptRecord[] = saved ? JSON.parse(saved) : [];
+      const failedMap = new Map<string, Flashcard>();
+
+      history.forEach((attempt) => {
+        attempt.failedQuestions.forEach((fq) => {
+          if (!failedMap.has(fq.questionId)) {
+            failedMap.set(fq.questionId, {
+              id: `failed_${fq.questionId}`,
+              category: attempt.category,
+              phaseNumber: 1,
+              title: `Quiz Revision: ${attempt.category}`,
+              prompt: fq.question,
+              answer: fq.correctAnswer,
+              explanation: fq.explanation,
+              keyTakeaway: `Your previous answer was: "${fq.selectedAnswer}". Review the correct answer above to cement your understanding.`,
+              difficulty: 'Intermediate'
+            });
+          }
+        });
+      });
+
+      return Array.from(failedMap.values());
+    } catch {
+      return [];
+    }
+  }, [currentUser.id]);
+
+  // Main Domains list
+  const domains = useMemo(() => {
+    const set = new Set<string>();
+    initialFlashcards.forEach((f) => set.add(f.category));
+    return ['all', ...Array.from(set)];
+  }, []);
+
+  // Subtopics list for selected domain
+  const subtopics = useMemo(() => {
+    const set = new Set<string>();
+    initialFlashcards.forEach((f) => {
+      if (selectedDomain === 'all' || f.category === selectedDomain) {
+        if (f.subtopicName) set.add(f.subtopicName);
+      }
+    });
+    return ['all', ...Array.from(set)];
+  }, [selectedDomain]);
+
+  // Active Deck Filtered List
+  const activeDeckList: Flashcard[] = useMemo(() => {
+    const source = deckMode === 'failed_quiz' ? failedQuizFlashcards : initialFlashcards;
+
+    return source.filter((c) => {
+      if (selectedDomain !== 'all' && c.category !== selectedDomain) return false;
+      if (selectedSubtopic !== 'all' && c.subtopicName !== selectedSubtopic) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = c.title.toLowerCase().includes(q);
+        const matchPrompt = c.prompt.toLowerCase().includes(q);
+        const matchAnswer = c.answer.toLowerCase().includes(q);
+        const matchSub = (c.subtopicName || '').toLowerCase().includes(q);
+        if (!matchTitle && !matchPrompt && !matchAnswer && !matchSub) return false;
+      }
+      return true;
+    });
+  }, [deckMode, failedQuizFlashcards, selectedDomain, selectedSubtopic, searchQuery]);
+
+  // Total pages
+  const totalPages = useMemo(() => {
+    if (pageSize === 'all') return 1;
+    return Math.max(1, Math.ceil(activeDeckList.length / pageSize));
+  }, [activeDeckList.length, pageSize]);
+
+  // Paginated Cards for Grid View
+  const paginatedCards = useMemo(() => {
+    if (pageSize === 'all') return activeDeckList;
+    const start = (currentPage - 1) * pageSize;
+    return activeDeckList.slice(start, start + pageSize);
+  }, [activeDeckList, currentPage, pageSize]);
+
+  // Reset page to 1 when filters or page size change
+  const handleFilterChange = (domain: string, subtopic: string) => {
+    setSelectedDomain(domain);
+    setSelectedSubtopic(subtopic);
+    setCurrentPage(1);
+    setFocusCardIndex(0);
+    setIsFocusFlipped(false);
+  };
+
+  const handleToggleCardFlip = (cardId: string) => {
+    setGridFlippedMap((prev) => ({ ...prev, [cardId]: !prev[cardId] }));
+  };
+
+  const handleToggleMastered = (cardId: string, mastered: boolean) => {
+    const updated = { ...masteredCards, [cardId]: mastered };
+    setMasteredCards(updated);
+    try {
+      localStorage.setItem(`ltrack_flashcards_mastered_${currentUser.id}`, JSON.stringify(updated));
+    } catch {}
+  };
+
+  const handleShuffle = () => {
+    setGridFlippedMap({});
+    setIsFocusFlipped(false);
+    setFocusCardIndex(Math.floor(Math.random() * Math.max(activeDeckList.length, 1)));
+  };
+
+  // Progress stats
+  const masteredInDeck = activeDeckList.filter((c) => masteredCards[c.id]).length;
+  const masteryPct = activeDeckList.length > 0 ? Math.round((masteredInDeck / activeDeckList.length) * 100) : 0;
+
+  const currentFocusCard: Flashcard | undefined = activeDeckList[focusCardIndex];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '1360px', margin: '0 auto', width: '100%' }}>
+      
+      {/* 1. Header Banner */}
+      <div className="glass-panel" style={{ padding: '22px 28px', background: 'linear-gradient(135deg, rgba(20, 20, 26, 0.95) 0%, rgba(30, 30, 42, 0.85) 100%)', border: '1px solid rgba(212, 163, 115, 0.22)', borderRadius: '18px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+              <span className="badge badge-learning" style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Layers size={13} color="#d4a373" /> Active Revision & Concept Memory Engine
+              </span>
+              <span style={{ fontSize: '0.74rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Award size={13} /> {masteredInDeck}/{activeDeckList.length} Cards Mastered ({masteryPct}%)
+              </span>
+            </div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#eae6e1', letterSpacing: '-0.02em', margin: 0 }}>
+              Revision Flashcards Hub
+            </h1>
+            <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: '4px', margin: 0 }}>
+              Explore comprehensive engineering cards with 10, 20, 30 card views, interactive 3D flips, and spaced repetition tracking.
+            </p>
+          </div>
+
+          {/* Deck Mode Toggle & View Layout Toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '6px', background: 'rgba(255, 255, 255, 0.03)', padding: '3px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <button
+                onClick={() => {
+                  setDeckMode('curated');
+                  setCurrentPage(1);
+                  setFocusCardIndex(0);
+                }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: deckMode === 'curated' ? 'rgba(212, 163, 115, 0.2)' : 'transparent',
+                  color: deckMode === 'curated' ? '#d4a373' : 'var(--text-muted)',
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <BookOpen size={13} /> Core Decks ({initialFlashcards.length})
+              </button>
+
+              <button
+                onClick={() => {
+                  setDeckMode('failed_quiz');
+                  setCurrentPage(1);
+                  setFocusCardIndex(0);
+                }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: deckMode === 'failed_quiz' ? 'rgba(239, 68, 68, 0.2)' : 'transparent',
+                  color: deckMode === 'failed_quiz' ? '#ef4444' : 'var(--text-muted)',
+                  fontSize: '0.76rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                <AlertCircle size={13} /> Quiz Review ({failedQuizFlashcards.length})
+              </button>
+            </div>
+
+            {/* Layout Toggle: Grid vs Focus */}
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255, 255, 255, 0.03)', padding: '3px', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <button
+                onClick={() => setViewLayout('grid')}
+                title="Grid Gallery View"
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '7px',
+                  border: 'none',
+                  background: viewLayout === 'grid' ? '#d4a373' : 'transparent',
+                  color: viewLayout === 'grid' ? '#0e0e12' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700
+                }}
+              >
+                <LayoutGrid size={14} /> Grid
+              </button>
+              <button
+                onClick={() => setViewLayout('focus')}
+                title="1-by-1 Focus Study Room"
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '7px',
+                  border: 'none',
+                  background: viewLayout === 'focus' ? '#d4a373' : 'transparent',
+                  color: viewLayout === 'focus' ? '#0e0e12' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.74rem',
+                  fontWeight: 700
+                }}
+              >
+                <Maximize2 size={14} /> Focus Study
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Main Topic & Subtopic Filters + Pagination Controls Toolbar */}
+      <div className="glass-panel" style={{ padding: '14px 18px', background: 'rgba(20, 20, 26, 0.85)', border: '1px solid rgba(212, 163, 115, 0.16)', borderRadius: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        
+        {/* Left: Main Domain & Subtopic Filters */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          {/* Main Topic Pills */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 700, marginRight: '2px' }}>
+              MAIN TOPIC:
+            </span>
+            {domains.map((dom) => (
+              <button
+                key={dom}
+                onClick={() => handleFilterChange(dom, 'all')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '8px',
+                  fontSize: '0.74rem',
+                  fontWeight: selectedDomain === dom ? 700 : 500,
+                  cursor: 'pointer',
+                  background: selectedDomain === dom ? '#d4a373' : 'rgba(255, 255, 255, 0.04)',
+                  color: selectedDomain === dom ? '#0e0e12' : 'var(--text-muted)',
+                  border: selectedDomain === dom ? '1px solid #d4a373' : '1px solid rgba(255, 255, 255, 0.08)'
+                }}
+              >
+                {dom.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* Subtopic Dropdown */}
+          {subtopics.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+                SUBTOPIC:
+              </span>
+              <select
+                value={selectedSubtopic}
+                onChange={(e) => handleFilterChange(selectedDomain, e.target.value)}
+                className="form-control"
+                style={{ padding: '5px 10px', fontSize: '0.76rem', width: 'auto', background: 'rgba(255, 255, 255, 0.05)', color: '#eae6e1', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px' }}
+              >
+                <option value="all">All Subtopics ({activeDeckList.length})</option>
+                {subtopics.filter((s) => s !== 'all').map((sub) => (
+                  <option key={sub} value={sub}>
+                    {sub}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Items Per Page Selector (10, 20, 30, All) & Search */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          
+          {/* Items Per View Selector */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: 700 }}>
+              SHOW:
+            </span>
+            <div style={{ display: 'flex', gap: '4px', background: 'rgba(255, 255, 255, 0.03)', padding: '2px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              {[10, 20, 30, 'all' as const].map((size) => (
+                <button
+                  key={String(size)}
+                  onClick={() => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    padding: '4px 9px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: pageSize === size ? '#d4a373' : 'transparent',
+                    color: pageSize === size ? '#0e0e12' : 'var(--text-muted)',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {size === 'all' ? 'All' : size}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button
+            onClick={handleShuffle}
+            className="btn btn-secondary"
+            style={{ padding: '5px 10px', fontSize: '0.74rem', display: 'flex', alignItems: 'center', gap: '4px', borderRadius: '8px' }}
+            title="Shuffle deck"
+          >
+            <Shuffle size={13} /> Shuffle
+          </button>
+
+          {/* Search Box */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px', padding: '5px 10px' }}>
+            <Search size={13} color="#d4a373" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search concepts..."
+              style={{ background: 'transparent', border: 'none', outline: 'none', color: '#eae6e1', fontSize: '0.75rem', width: '130px' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 3. FLASHCARDS GRID GALLERY VIEW */}
+      {viewLayout === 'grid' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          
+          {/* Result Count & Pagination Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', padding: '0 4px' }}>
+            <span>
+              Showing <strong>{paginatedCards.length}</strong> of <strong>{activeDeckList.length}</strong> cards
+              {pageSize !== 'all' && ` (Page ${currentPage} of ${totalPages})`}
+            </span>
+
+            {/* Pagination Button Controls */}
+            {pageSize !== 'all' && totalPages > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="btn btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: '0.72rem', opacity: currentPage === 1 ? 0.4 : 1 }}
+                >
+                  <ChevronLeft size={13} />
+                </button>
+
+                {Array.from({ length: totalPages }).map((_, idx) => {
+                  const pageNum = idx + 1;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      style={{
+                        width: '26px',
+                        height: '26px',
+                        borderRadius: '6px',
+                        border: currentPage === pageNum ? '1px solid #d4a373' : '1px solid rgba(255, 255, 255, 0.08)',
+                        background: currentPage === pageNum ? '#d4a373' : 'rgba(255, 255, 255, 0.03)',
+                        color: currentPage === pageNum ? '#0e0e12' : 'var(--text-muted)',
+                        fontSize: '0.74rem',
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="btn btn-secondary"
+                  style={{ padding: '4px 8px', fontSize: '0.72rem', opacity: currentPage === totalPages ? 0.4 : 1 }}
+                >
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Cards Grid */}
+          {activeDeckList.length === 0 ? (
+            <div className="glass-panel" style={{ padding: '48px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.9rem' }}>
+              {deckMode === 'failed_quiz'
+                ? 'No failed quiz questions found! You have a clean quiz record or haven\'t taken a quiz yet.'
+                : 'No flashcards match the selected filter. Try selecting "All Main Topics".'}
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+              {paginatedCards.map((card) => {
+                const isFlipped = Boolean(gridFlippedMap[card.id]);
+                const isMastered = Boolean(masteredCards[card.id]);
+
+                return (
+                  <div
+                    key={card.id}
+                    onClick={() => handleToggleCardFlip(card.id)}
+                    className="glass-panel flashcard-interactive-card"
+                    style={{
+                      padding: '20px',
+                      background: isFlipped ? 'rgba(25, 25, 36, 0.95)' : 'rgba(20, 20, 26, 0.88)',
+                      border: isFlipped
+                        ? '1px solid rgba(56, 189, 248, 0.35)'
+                        : isMastered
+                        ? '1px solid rgba(52, 211, 153, 0.35)'
+                        : '1px solid rgba(212, 163, 115, 0.18)',
+                      borderRadius: '16px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      minHeight: '280px',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.35)',
+                      transition: 'all 0.2s ease',
+                      gap: '14px'
+                    }}
+                  >
+                    {/* Card Top: Phase, Category, Flip Icon & Mastery Badge */}
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#d4a373', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Phase {card.phaseNumber} • {card.category} {card.subtopicName ? `(${card.subtopicName})` : ''}
+                        </span>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {isMastered && (
+                            <span style={{ fontSize: '0.65rem', color: '#34d399', background: 'rgba(52, 211, 153, 0.12)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '2px 6px', borderRadius: '4px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <Check size={10} /> Mastered
+                            </span>
+                          )}
+                          <span style={{ fontSize: '0.68rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <RotateCw size={11} /> {isFlipped ? 'Answer' : 'Question'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Body: Front Prompt vs Back Answer */}
+                      {!isFlipped ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <h3 className="apple-lyrics-text" style={{ fontSize: '0.98rem', fontWeight: 800, lineHeight: 1.4, margin: 0 }}>
+                            {card.prompt}
+                          </h3>
+
+                          {card.codeSnippet && (
+                            <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '8px', padding: '10px', fontFamily: 'monospace', fontSize: '0.74rem', color: '#38bdf8', lineHeight: 1.4, maxHeight: '90px', overflow: 'hidden' }}>
+                              <pre style={{ margin: 0 }}>{card.codeSnippet}</pre>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div>
+                            <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>
+                              Core Answer:
+                            </span>
+                            <p className="apple-lyrics-text" style={{ fontSize: '0.88rem', fontWeight: 700, lineHeight: 1.4, margin: 0 }}>
+                              {card.answer}
+                            </p>
+                          </div>
+
+                          <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '8px 10px', borderRadius: '8px', fontSize: '0.74rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                            <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Key Takeaway:</strong>
+                            {card.keyTakeaway}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Card Bottom: Mastered Toggle Buttons */}
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    >
+                      <button
+                        onClick={() => handleToggleCardFlip(card.id)}
+                        style={{ background: 'transparent', border: 'none', color: '#d4a373', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', padding: 0 }}
+                      >
+                        <RotateCw size={11} /> Flip Card
+                      </button>
+
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => handleToggleMastered(card.id, false)}
+                          title="Mark for revision"
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            background: !isMastered ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                            color: '#ef4444',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Review
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleMastered(card.id, true)}
+                          title="Mark as mastered"
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            background: isMastered ? 'rgba(52, 211, 153, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid rgba(52, 211, 153, 0.3)',
+                            color: '#34d399',
+                            fontSize: '0.7rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}
+                        >
+                          <Check size={11} /> Mastered
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Bottom Pagination Bar */}
+          {pageSize !== 'all' && totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '12px', paddingBottom: '20px' }}>
+              <button
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.76rem', opacity: currentPage === 1 ? 0.4 : 1 }}
+              >
+                <ChevronLeft size={14} /> Previous
+              </button>
+
+              <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0 8px' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+
+              <button
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="btn btn-secondary"
+                style={{ padding: '6px 12px', fontSize: '0.76rem', opacity: currentPage === totalPages ? 0.4 : 1 }}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 4. FLASHCARD 1-BY-1 FOCUS STUDY ROOM VIEW */}
+      {viewLayout === 'focus' && currentFocusCard && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', alignItems: 'center', width: '100%' }}>
+          
+          {/* Card Progress Strip */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: '780px' }}>
+            <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#d4a373' }}>
+              Card {focusCardIndex + 1} of {activeDeckList.length} • {currentFocusCard.category} {currentFocusCard.subtopicName ? `(${currentFocusCard.subtopicName})` : ''}
+            </span>
+
+            <span style={{ fontSize: '0.72rem', color: masteredCards[currentFocusCard.id] ? '#34d399' : 'var(--text-dim)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {masteredCards[currentFocusCard.id] ? <Check size={12} /> : null}
+              {masteredCards[currentFocusCard.id] ? 'Mastered' : 'Needs Practice'}
+            </span>
+          </div>
+
+          {/* Interactive 3D Focus Card */}
+          <div
+            onClick={() => setIsFocusFlipped(!isFocusFlipped)}
+            style={{
+              width: '100%',
+              maxWidth: '780px',
+              minHeight: '340px',
+              cursor: 'pointer',
+              perspective: '1200px'
+            }}
+          >
+            <div
+              className="glass-panel flashcard-interactive-card"
+              style={{
+                width: '100%',
+                minHeight: '340px',
+                padding: '32px 36px',
+                background: isFocusFlipped ? 'rgba(25, 25, 36, 0.95)' : 'rgba(20, 20, 26, 0.92)',
+                border: isFocusFlipped ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(212, 163, 115, 0.28)',
+                borderRadius: '22px',
+                boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                gap: '20px',
+                transition: 'all 0.25s ease'
+              }}
+            >
+              {/* Card Top Pill */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span className={`badge badge-${isFocusFlipped ? 'learning' : 'completed'}`} style={{ fontSize: '0.7rem' }}>
+                  {isFocusFlipped ? 'REVERSE SIDE (ANSWER & EXPLANATION)' : 'FRONT SIDE (CONCEPT QUESTION)'}
+                </span>
+
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <RotateCw size={12} /> Click anywhere to flip
+                </span>
+              </div>
+
+              {/* Card Content */}
+              {!isFocusFlipped ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <h2 className="apple-lyrics-text" style={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1.4, margin: 0 }}>
+                    {currentFocusCard.prompt}
+                  </h2>
+
+                  {currentFocusCard.codeSnippet && (
+                    <div style={{ background: '#0a0a0e', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '16px', fontFamily: 'monospace', fontSize: '0.82rem', color: '#38bdf8', lineHeight: 1.5, overflowX: 'auto' }}>
+                      <pre style={{ margin: 0 }}>{currentFocusCard.codeSnippet}</pre>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#34d399', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                      Core Answer:
+                    </span>
+                    <p className="apple-lyrics-text" style={{ fontSize: '1rem', fontWeight: 700, lineHeight: 1.4, margin: 0 }}>
+                      {currentFocusCard.answer}
+                    </p>
+                  </div>
+
+                  <div style={{ background: 'rgba(0, 0, 0, 0.3)', padding: '12px 14px', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    <strong style={{ color: '#d4a373', display: 'block', marginBottom: '2px' }}>Deep Explanation:</strong>
+                    {currentFocusCard.explanation}
+                  </div>
+
+                  <div style={{ background: 'rgba(52, 211, 153, 0.08)', border: '1px solid rgba(52, 211, 153, 0.25)', padding: '10px 14px', borderRadius: '10px', fontSize: '0.78rem', color: '#eae6e1' }}>
+                    <strong style={{ color: '#34d399', display: 'block', marginBottom: '2px' }}>Key Takeaway:</strong>
+                    {currentFocusCard.keyTakeaway}
+                  </div>
+                </div>
+              )}
+
+              {/* Bottom Navigation & Mastery Buttons */}
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                  paddingTop: '16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}
+              >
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      setIsFocusFlipped(false);
+                      setFocusCardIndex((prev) => (prev > 0 ? prev - 1 : activeDeckList.length - 1));
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '7px 12px', fontSize: '0.76rem', borderRadius: '8px' }}
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsFocusFlipped(false);
+                      setFocusCardIndex((prev) => (prev < activeDeckList.length - 1 ? prev + 1 : 0));
+                    }}
+                    className="btn btn-secondary"
+                    style={{ padding: '7px 12px', fontSize: '0.76rem', borderRadius: '8px' }}
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </div>
+
+                {/* Spaced Repetition Buttons */}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => {
+                      handleToggleMastered(currentFocusCard.id, false);
+                      setIsFocusFlipped(false);
+                      setFocusCardIndex((prev) => (prev < activeDeckList.length - 1 ? prev + 1 : 0));
+                    }}
+                    style={{
+                      padding: '7px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      color: '#ef4444',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <RotateCcw size={12} /> Review Again
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      handleToggleMastered(currentFocusCard.id, true);
+                      setIsFocusFlipped(false);
+                      setFocusCardIndex((prev) => (prev < activeDeckList.length - 1 ? prev + 1 : 0));
+                    }}
+                    style={{
+                      padding: '7px 16px',
+                      borderRadius: '8px',
+                      background: 'rgba(52, 211, 153, 0.15)',
+                      border: '1px solid rgba(52, 211, 153, 0.4)',
+                      color: '#34d399',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <CheckCircle2 size={13} /> Got It / Mastered
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

@@ -11,7 +11,9 @@ import {
   LogOut,
   Code2,
   Settings,
-  X
+  X,
+  HelpCircle,
+  BookOpen
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +31,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ mobileOpen = false, onCloseMob
 
   // Quick Action Tool Rail Items
   const railItems = [
+    {
+      id: 'quizzes',
+      label: 'Concept Quizzes',
+      icon: HelpCircle,
+      badge: 'New',
+      badgeColor: '#38bdf8'
+    },
+    {
+      id: 'flashcards',
+      label: 'Revision Flashcards',
+      icon: BookOpen,
+      badge: null
+    },
     {
       id: 'code_sandbox',
       label: 'Code Sandbox',

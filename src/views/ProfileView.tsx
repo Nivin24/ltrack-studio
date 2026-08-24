@@ -14,16 +14,28 @@ import {
   BookOpen,
   Award,
   BarChart2,
-  Star
+  Star,
+  HelpCircle,
+  Layers
 } from 'lucide-react';
+import type { QuizAttemptRecord } from '../types/sandbox';
 
 export const ProfileView: React.FC = () => {
-  const { currentUser, topics, checkIns, submissions } = useLTrack();
+  const { currentUser, topics, checkIns, submissions, setActiveTab } = useLTrack();
 
   const userCheckIns = checkIns.filter((c) => c.userId === currentUser.id);
   const completedTopicsCount = topics.filter((t) => t.status === 'completed').length;
   const inProgressTopicsCount = topics.filter((t) => t.status === 'learning').length;
   const userSubmissionsCount = submissions.filter((s) => s.userId === currentUser.id).length;
+
+  const privateQuizHistory: QuizAttemptRecord[] = React.useMemo(() => {
+    try {
+      const saved = localStorage.getItem(`ltrack_private_quiz_history_${currentUser.id}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  }, [currentUser.id]);
 
   const weekDays = [
     { day: 'Monday', date: 'Jul 29', active: true, hours: '3.5h' },
@@ -296,6 +308,90 @@ export const ProfileView: React.FC = () => {
           ))}
         </div>
       </div>
+
+      {/* 7. Private Quiz Assessment History & Time Stamps (Strictly Private to Current User) */}
+      <div className="glass-panel" style={{ padding: '28px', background: '#1c1c1c', border: '1px solid rgba(212, 163, 115, 0.22)', borderRadius: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#eae6e1', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <HelpCircle size={20} color="#38bdf8" /> My Private Quiz Assessment History & Time Stamps
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+              Individual question performance is kept private to your account. Teammates cannot view your specific quiz failures.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setActiveTab('quizzes')}
+              className="btn btn-primary"
+              style={{ padding: '6px 14px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '8px' }}
+            >
+              <HelpCircle size={13} /> Take a Quiz
+            </button>
+            <button
+              onClick={() => setActiveTab('flashcards')}
+              className="btn btn-secondary"
+              style={{ padding: '6px 14px', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '8px' }}
+            >
+              <Layers size={13} color="#d4a373" /> Flashcards
+            </button>
+          </div>
+        </div>
+
+        {privateQuizHistory.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-dim)', fontSize: '0.84rem', background: '#222222', borderRadius: '12px' }}>
+            No quiz attempts recorded yet. Take an engineering quiz to view your diagnostic scores and IST timestamps here.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {privateQuizHistory.slice(0, 5).map((item) => (
+              <div
+                key={item.id}
+                style={{
+                  background: '#222222',
+                  padding: '14px 18px',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#eae6e1' }}>
+                      {item.category}
+                    </span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <Clock size={11} /> {item.timestamp}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                    {item.correctCount}/{item.totalCount} correct • {item.timeSpentSeconds}s duration • {item.failedQuestions.length} review items
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <span style={{ fontSize: '1.15rem', fontWeight: 800, color: item.scorePct >= 80 ? '#34d399' : item.scorePct >= 50 ? '#38bdf8' : '#ef4444' }}>
+                    {item.scorePct}%
+                  </span>
+                  <button
+                    onClick={() => setActiveTab('quizzes')}
+                    className="btn btn-secondary"
+                    style={{ padding: '5px 10px', fontSize: '0.72rem', borderRadius: '6px' }}
+                  >
+                    View Report
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 };

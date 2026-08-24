@@ -23,7 +23,9 @@ import {
   X,
   FileCode,
   Download,
-  PlusCircle
+  PlusCircle,
+  HelpCircle,
+  Layers
 } from 'lucide-react';
 
 interface Props {
@@ -31,11 +33,11 @@ interface Props {
   onClose: () => void;
 }
 
-interface SpotlightItem {
+export interface SpotlightItem {
   id: string;
-  group: 'Applications & Pages' | 'Curriculum Topics' | 'Assignments & PRs' | 'Team Members' | 'Quick Actions';
+  group: 'Applications & Pages' | 'Curriculum Topics' | 'Assignments & PRs' | 'Team Members' | 'Quick Actions' | 'Assignments';
   title: string;
-  subtitle?: string;
+  subtitle: string;
   badge?: string;
   badgeColor?: string;
   icon: React.ComponentType<{ size?: number; color?: string; style?: React.CSSProperties }>;
@@ -82,6 +84,32 @@ export const SpotlightSearchModal: React.FC<Props> = ({ isOpen, onClose }) => {
       icon: LayoutDashboard,
       onSelect: () => {
         setActiveTab(currentUser.role === 'admin' ? 'admin_dashboard' : 'member_dashboard');
+        onClose();
+      }
+    },
+    {
+      id: 'page_quizzes',
+      group: 'Applications & Pages',
+      title: 'Engineering Concept Quizzes',
+      subtitle: 'Knowledge assessments, failed topic diagnostic reports & private logs',
+      badge: 'Assessment',
+      badgeColor: '#38bdf8',
+      icon: HelpCircle,
+      onSelect: () => {
+        setActiveTab('quizzes');
+        onClose();
+      }
+    },
+    {
+      id: 'page_flashcards',
+      group: 'Applications & Pages',
+      title: 'Revision Flashcards Hub',
+      subtitle: 'Spaced repetition revision cards with 3D flip & quiz review decks',
+      badge: 'Study',
+      badgeColor: '#d4a373',
+      icon: Layers,
+      onSelect: () => {
+        setActiveTab('flashcards');
         onClose();
       }
     },
