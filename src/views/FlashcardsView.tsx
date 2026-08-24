@@ -63,29 +63,42 @@ const PythonCodeSnippet: React.FC<{ code: string; maxHeight?: string }> = ({ cod
 
   const highlightLine = (line: string) => {
     if (line.trim().startsWith('#')) {
-      return <span style={{ color: '#849c86', fontStyle: 'italic' }}>{line}</span>;
+      return <span style={{ color: '#64748b', fontStyle: 'italic' }}>{line}</span>;
     }
 
-    const tokens = line.split(/(\b(?:def|async|await|import|from|return|class|yield|with|if|elif|else|try|except|finally|for|while|in|as|pass|raise|break|continue|True|False|None)\b|\b(?:int|str|dict|list|set|tuple|Depends|BaseModel|FastAPI|APIRouter|Session|select|func|Vector|Embeddings)\b|#.*$|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|@\w+)/g);
+    // Token regex capturing comments, strings, keywords, builtins/types/numbers, operators/brackets, and identifiers
+    const tokens = line.split(/(#.*$|f?"(?:\\.|[^"\\])*"|f?'(?:\\.|[^'\\])*'|\b(?:async|def|await|import|from|return|class|yield|with|if|elif|else|try|except|finally|for|while|in|as|pass|raise|break|continue|True|False|None)\b|\b(?:print|range|len|type|int|str|dict|list|set|tuple|float|bool|Depends|BaseModel|FastAPI|APIRouter|Session|select|func|Vector|Embeddings)\b|\b\d+(?:\.\d+)?\b|[{}()[\]:.,=+\-*/%><!&|^~]+)/g);
 
     return tokens.map((token, i) => {
       if (!token) return null;
+
+      // 1. Comments
       if (token.startsWith('#')) {
-        return <span key={i} style={{ color: '#849c86', fontStyle: 'italic' }}>{token}</span>;
+        return <span key={i} style={{ color: '#64748b', fontStyle: 'italic' }}>{token}</span>;
       }
-      if (token.startsWith('"') || token.startsWith("'")) {
-        return <span key={i} style={{ color: '#34d399' }}>{token}</span>;
+
+      // 2. Strings
+      if (token.startsWith('"') || token.startsWith("'") || token.startsWith('f"') || token.startsWith("f'")) {
+        return <span key={i} style={{ color: '#f8fafc' }}>{token}</span>;
       }
-      if (token.startsWith('@')) {
-        return <span key={i} style={{ color: '#e5b982' }}>{token}</span>;
+
+      // 3. Keywords & Control Flow (Salmon-Red)
+      if (/^(async|def|await|import|from|return|class|yield|with|if|elif|else|try|except|finally|for|while|in|as|pass|raise|break|continue|True|False|None)$/.test(token)) {
+        return <span key={i} style={{ color: '#f87171', fontWeight: 600 }}>{token}</span>;
       }
-      if (/^(def|async|await|import|from|return|class|yield|with|if|elif|else|try|except|finally|for|while|in|as|pass|raise|break|continue|True|False|None)$/.test(token)) {
-        return <span key={i} style={{ color: '#c47662', fontWeight: 700 }}>{token}</span>;
+
+      // 4. Builtins, Types & Numbers (Vibrant Sky Blue)
+      if (/^(print|range|len|type|int|str|dict|list|set|tuple|float|bool|Depends|BaseModel|FastAPI|APIRouter|Session|select|func|Vector|Embeddings)$/.test(token) || /^\d+(\.\d+)?$/.test(token)) {
+        return <span key={i} style={{ color: '#60a5fa', fontWeight: 600 }}>{token}</span>;
       }
-      if (/^(int|str|dict|list|set|tuple|Depends|BaseModel|FastAPI|APIRouter|Session|select|func|Vector|Embeddings)$/.test(token)) {
-        return <span key={i} style={{ color: '#38bdf8', fontWeight: 600 }}>{token}</span>;
+
+      // 5. Operators, Brackets & Punctuation (Salmon-Red / Coral)
+      if (/^[{}()[\]:.,=+\-*/%><!&|^~]+$/.test(token)) {
+        return <span key={i} style={{ color: '#f87171' }}>{token}</span>;
       }
-      return <span key={i} style={{ color: '#d4a373' }}>{token}</span>;
+
+      // 6. Variables & Identifiers (Clean White)
+      return <span key={i} style={{ color: '#f8fafc' }}>{token}</span>;
     });
   };
 
@@ -93,19 +106,19 @@ const PythonCodeSnippet: React.FC<{ code: string; maxHeight?: string }> = ({ cod
     <div
       style={{
         background: '#0a0a0e',
-        border: '1px solid rgba(212, 163, 115, 0.22)',
-        borderRadius: '10px',
-        padding: '10px 14px',
-        fontFamily: "'Fira Code', ui-monospace, SFMono-Regular, monospace",
-        fontSize: '0.75rem',
-        lineHeight: 1.5,
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '12px',
+        padding: '12px 14px',
+        fontFamily: "'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+        fontSize: '0.76rem',
+        lineHeight: 1.55,
         overflowX: 'auto',
         overflowY: 'auto',
         maxHeight,
-        boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.6)'
+        boxShadow: 'inset 0 2px 6px rgba(0, 0, 0, 0.65)'
       }}
     >
-      <pre style={{ margin: 0, color: '#d4a373' }}>
+      <pre style={{ margin: 0, color: '#f8fafc' }}>
         {lines.map((line, lIdx) => (
           <div key={lIdx}>{highlightLine(line) || ' '}</div>
         ))}
